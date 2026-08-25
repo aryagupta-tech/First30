@@ -125,3 +125,7 @@ npm run build
 ```
 
 Application and D1 readiness is available at `/api/health`.
+
+## License
+
+FIRST30 is available under the [MIT License](LICENSE).
