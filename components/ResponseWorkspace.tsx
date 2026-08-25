@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Header, SafetyFooter } from './Header';
 import { useLocale } from './LocaleProvider';
 import { DEMO_NARRATIVE, type EvidenceKind, type FactKey, type Observation } from '@/lib/contracts';
-import { analyseEvidenceLocally, analyseManualText, createSampleEvidenceSet } from '@/lib/client-ocr';
+import { analyseEvidenceLocally, analyseManualText, createSampleEvidenceSet, type OcrMethod } from '@/lib/client-ocr';
 import { buildResponsePackage } from '@/lib/client-export';
 
 type Row = Record<string, string | number | null>;
@@ -13,10 +13,10 @@ type ObservationRow = Observation & { id?: string; evidenceId: string; evidenceK
 type Resolution = { field: FactKey; value: string; normalizedValue: string; resolutionType: 'evidence' | 'manual' | 'unknown'; sourceEvidenceId?: string | null };
 type Passport = { coverage: { present: number; total: number }; counts: { passed: number; conflicts: number; missing: number; unknownFacts: number }; checks: Array<{ code: string; status: 'pass' | 'conflict' | 'missing'; titleEn: string; titleHi: string; detailEn: string; detailHi: string; evidenceIds: string[] }>; facts: Array<{ field: FactKey; resolution: Resolution | null; observations: ObservationRow[] }> };
 type Bundle = { case: Row; evidence: Row[]; chronology: Row[]; milestones: Row[]; exports: Row[]; readiness: { blockers: number }; observations: ObservationRow[]; resolutions: Resolution[]; passport: Passport; findings: Row[]; custody: Row[] };
-type Pending = { id: string; kind: EvidenceKind; filename: string; text: string; observations: Observation[]; ocrMethod: 'browser_ocr' | 'bundled_sample' | 'manual'; clientSha256: string };
+type Pending = { id: string; kind: EvidenceKind; filename: string; text: string; observations: Observation[]; ocrMethod: OcrMethod; clientSha256: string };
 
 const FACTS: FactKey[] = ['amount', 'reference', 'recipient', 'institution', 'phone', 'occurred_at'];
-const KIND_COPY: Record<EvidenceKind, [string, string]> = { receipt: ['Payment receipt', 'भुगतान रसीद'], chat: ['Scam conversation', 'ठगी बातचीत'], call_log: ['Call log', 'कॉल लॉग'] };
+const KIND_COPY: Record<EvidenceKind, [string, string]> = { receipt: ['Payment receipt', 'भुगतान रसीद'], chat: ['Scam conversation', 'ठगी बातचीत'], call_log: ['Call log', 'कॉल लॉग'], bank_statement: ['Bank statement', 'बैंक स्टेटमेंट'] };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init); const data = await response.json() as T & { error?: string };
@@ -57,7 +57,7 @@ export function ResponseWorkspace({ caseId: suppliedCaseId }: { caseId?: string 
   }, [locale, refresh, suppliedCaseId]);
 
   async function uploadEvidence(file: File, kind: EvidenceKind, sample = false, autoConfirm = false) {
-    const local = await analyseEvidenceLocally(file, kind, sample); const data = new FormData();
+    const local = await analyseEvidenceLocally(file, kind, { sample }); const data = new FormData();
     data.set('synthetic', 'true'); data.set('kind', kind); data.set('file', file); if (sample) data.set('sample', 'true');
     const uploaded = await api<{ id: string; filename: string }>(`/api/cases/${caseId}/evidence`, { method: 'POST', body: data });
     const analysis: Pending = { id: uploaded.id, kind, filename: uploaded.filename, ...local };

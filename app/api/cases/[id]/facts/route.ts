@@ -8,7 +8,8 @@ const bodySchema = z.object({ facts: z.array(factResolutionSchema).max(6) });
 
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureSchema(); const sessionId = await requireSession(request); const { id } = await context.params; await ownedCase(sessionId, id);
+    await ensureSchema(); const sessionId = await requireSession(request); const { id } = await context.params; const caseRow = await ownedCase(sessionId, id);
+    if (caseRow.submitted_at) return json({ error: 'The submitted snapshot is immutable. Confirm facts before mock submission.' }, { status: 409 });
     const { facts } = bodySchema.parse(await request.json());
     if (new Set(facts.map((item) => item.field)).size !== facts.length) return json({ error: 'Each fact can be resolved only once.' }, { status: 400 });
     for (const fact of facts) {
@@ -24,7 +25,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     await env.DB.batch([
       env.DB.prepare('DELETE FROM fact_resolutions WHERE case_id = ?').bind(id), ...inserts,
       env.DB.prepare('INSERT INTO custody_events (id, case_id, evidence_id, action, detail, created_at) VALUES (?, ?, NULL, ?, ?, ?)').bind(crypto.randomUUID(), id, 'facts_resolved', `${facts.length} canonical facts confirmed`, now),
-      env.DB.prepare("UPDATE cases SET status = 'review_needed', updated_at = ? WHERE id = ? AND session_id = ?").bind(now, id, sessionId),
+      env.DB.prepare("UPDATE cases SET status = 'evidence_review', step = 3, updated_at = ? WHERE id = ? AND session_id = ?").bind(now, id, sessionId),
     ]);
     const values = new Map(facts.map((item) => [item.field, item.resolutionType === 'unknown' ? 'Unknown' : item.value]));
     const numericAmount = Number(values.get('amount') || 0);

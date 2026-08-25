@@ -12,7 +12,7 @@ export function Header({ compact = false }: { compact?: boolean }) {
       </Link>
       <div className="topbar-actions">
         <Link className="header-link" href="/verify">{pick('Verify a ZIP', 'ZIP सत्यापित करें')}</Link>
-        <span className="prototype-pill">{pick('Private · synthetic prototype', 'निजी · काल्पनिक प्रोटोटाइप')}</span>
+        <span className="prototype-pill">{pick('Independent · mock systems', 'स्वतंत्र · मॉक सिस्टम')}</span>
         <button className="language-button" type="button" onClick={() => setLocale(locale === 'en' ? 'hi' : 'en')} aria-label={pick('Switch to Hindi', 'अंग्रेज़ी में बदलें')}>
           {locale === 'en' ? 'हिंदी' : 'EN'}
         </button>

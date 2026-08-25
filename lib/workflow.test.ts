@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
-import { COPY, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, extractionSchema, manifestCoreSchema } from './contracts';
+import { COPY, SAMPLE_BANK_STATEMENT_TEXT, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, complainantProfileSchema, demoLoginSchema, extractionSchema, intakeSchema, manifestCoreSchema, mockSubmissionSchema } from './contracts';
 import { derivePassport, normalizeFact, observationsFromText } from './evidence-passport';
 import { detectImageMime, findContradictions, parseReceiptText, sha256Hex, stableJson } from './response-file';
 import { caseStatusFor, evaluateReadiness, isExportable } from './workflow';
@@ -51,6 +51,12 @@ describe('Evidence Passport analysis', () => {
     expect(observationsFromText('call_log', SAMPLE_CALL_LOG_TEXT).some((item) => item.field === 'occurred_at')).toBe(true);
   });
 
+  it('parses the mock bank-statement response through the same deterministic rules', () => {
+    const values = observationsFromText('bank_statement', SAMPLE_BANK_STATEMENT_TEXT);
+    expect(values.some((item) => item.field === 'amount' && item.normalizedValue === '18499')).toBe(true);
+    expect(values.some((item) => item.field === 'reference' && item.normalizedValue === 'UTR826194730521')).toBe(true);
+  });
+
   it('normalizes phone, recipient and reference values deterministically', () => {
     expect(normalizeFact('phone', '+91 98765 43210')).toBe('9876543210');
     expect(normalizeFact('recipient', 'Verify.KYC@FakeUPI')).toBe('verify.kyc@fakeupi');
@@ -74,6 +80,21 @@ describe('Evidence Passport analysis', () => {
   it('keeps unsupported manual facts as exportable conflicts', () => {
     const result = derivePassport([], [], [{ field: 'reference', value: 'MANUAL123', normalizedValue: 'MANUAL123', resolutionType: 'manual' }]);
     expect(result.checks.some((item) => item.code === 'unsupported_reference' && item.status === 'conflict')).toBe(true);
+  });
+});
+
+describe('synthetic reporting journey contracts', () => {
+  it('accepts only the visible demo credentials', () => {
+    expect(demoLoginSchema.parse({ mobile: '90000 00000', otp: '123456', locale: 'en' }).mobile).toBe('9000000000');
+    expect(() => demoLoginSchema.parse({ mobile: '90000 00001', otp: '123456', locale: 'en' })).toThrow();
+    expect(() => demoLoginSchema.parse({ mobile: '90000 00000', otp: '000000', locale: 'en' })).toThrow();
+  });
+
+  it('validates the fictional triage, profile and explicit mock consent', () => {
+    expect(intakeSchema.parse({ fraudType: 'fake_kyc', channel: 'upi', lossTiming: 'under_30_minutes', helplineContacted: false, bankContacted: false, delayReason: '', amount: 18_499, occurredAt: '2026-08-21T18:42' }).amount).toBe(18_499);
+    expect(complainantProfileSchema.parse({ fullName: 'Sunita Sharma', mobile: '90000 00000', gender: 'female', dateOfBirth: '14/08/1987', relationName: 'Rakesh Sharma', address: '14 Demo Lane, Vijay Nagar', state: 'Madhya Pradesh', district: 'Indore', policeStation: 'Vijay Nagar (Demo)', pincode: '452010' }).pincode).toBe('452010');
+    expect(mockSubmissionSchema.safeParse({ consent: true, syntheticConfirmation: true }).success).toBe(true);
+    expect(mockSubmissionSchema.safeParse({ consent: true, syntheticConfirmation: false }).success).toBe(false);
   });
 });
 

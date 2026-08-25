@@ -6,11 +6,44 @@ import { useLocale } from './LocaleProvider';
 
 export function Landing() {
   const { pick } = useLocale();
-  const capabilities = [
-    [pick('Connects sources', 'स्रोत जोड़ता है'), pick('Receipt, chat and call-log observations appear beside every fact they support.', 'रसीद, चैट और कॉल-लॉग हर समर्थित तथ्य के साथ दिखाई देते हैं।')],
-    [pick('Exposes conflicts', 'विरोध दिखाता है'), pick('Different amounts, recipients, references and impossible times remain visible.', 'अलग राशि, प्राप्तकर्ता, संदर्भ और असंभव समय दिखाई देते हैं।')],
-    [pick('Records custody', 'अभिरक्षा दर्ज करता है'), pick('Every original is hashed as it is added, analysed, confirmed and exported.', 'हर मूल फ़ाइल जोड़ने, विश्लेषण, पुष्टि और निर्यात पर हैश होती है।')],
-    [pick('Verifies the whole ZIP', 'पूरा ZIP जाँचता है'), pick('Every packaged file is re-hashed locally before its signature is checked.', 'हस्ताक्षर से पहले हर पैकेज फ़ाइल स्थानीय रूप से दोबारा हैश होती है।')],
+  const stages = [
+    [pick('Act quickly', 'तुरंत कदम उठाएँ'), pick('See 1930 and bank-contact guidance before filling a long form.', 'लंबा फॉर्म भरने से पहले 1930 और बैंक से संपर्क की जानकारी पाएँ।')],
+    [pick('Add evidence once', 'प्रमाण एक बार जोड़ें'), pick('Receipt, chat and call log become source-linked facts.', 'रसीद, चैट और कॉल लॉग स्रोत-संबद्ध तथ्य बनते हैं।')],
+    [pick('Review clearly', 'स्पष्ट समीक्षा करें'), pick('Confirm facts, explain conflicts and mark unavailable details Unknown.', 'तथ्य पुष्ट करें, विरोध समझाएँ और अनुपलब्ध जानकारी अज्ञात रखें।')],
+    [pick('Submit and track', 'जमा करें और ट्रैक करें'), pick('Receive a mock acknowledgement and answer a follow-up request.', 'मॉक पावती पाएँ और अतिरिक्त प्रमाण अनुरोध का उत्तर दें।')],
   ];
-  return <main className="site-shell"><Header /><section className="response-hero"><div className="response-hero-copy"><p className="eyebrow">{pick('Evidence before assumptions', 'अनुमान से पहले प्रमाण')}</p><h1>{pick('Know what your evidence proves before you report.', 'रिपोर्ट से पहले जानें कि प्रमाण क्या साबित करता है।')}</h1><p>{pick('AI writes. FIRST30 traces every fact back to a receipt, scam chat or call log, exposes contradictions and creates a tamper-evident Evidence Passport.', 'AI लिखता है। FIRST30 हर तथ्य को रसीद, ठगी चैट या कॉल लॉग से जोड़ता है, विरोध दिखाता है और छेड़छाड़-स्पष्ट एविडेंस पासपोर्ट बनाता है।')}</p><div className="hero-actions"><Link className="primary-button" href="/report">{pick('Build an Evidence Passport', 'एविडेंस पासपोर्ट बनाएँ')} →</Link><Link className="secondary-button" href="/verify">{pick('Verify a complete ZIP', 'पूरा ZIP सत्यापित करें')}</Link></div><small>{pick('Independent synthetic prototype · analysis stays in the browser', 'स्वतंत्र काल्पनिक प्रोटोटाइप · विश्लेषण ब्राउज़र में रहता है')}</small></div><aside className="package-preview" aria-label={pick('Evidence Passport preview', 'एविडेंस पासपोर्ट पूर्वावलोकन')}><div className="package-sheet"><div className="sheet-brand"><span>30</span><strong>FIRST30 EVIDENCE PASSPORT</strong></div><h2>5 ✓ · 1 !</h2><p>RECEIPT + CHAT + CALL LOG</p><div className="sheet-checks"><span>✓ {pick('Facts linked to sources', 'तथ्य स्रोतों से जुड़े')}</span><span>! {pick('Amount mismatch exposed', 'राशि अंतर दिखाया')}</span><span>✓ {pick('Every original checksummed', 'हर मूल फ़ाइल चेकसम')}</span></div><div className="sheet-files"><span>PDF</span><span>PASSPORT.JSON</span><span>ORIGINALS</span><span>ZIP</span></div></div><div className="package-seal"><span>✓</span><strong>{pick('Source-linked output', 'स्रोत-संबद्ध आउटपुट')}</strong><small>{pick('Not an AI-written guess', 'AI का अनुमान नहीं')}</small></div></aside></section><section className="real-value-section"><div><p className="eyebrow">{pick('What generic AI cannot guarantee', 'सामान्य AI क्या सुनिश्चित नहीं कर सकता')}</p><h2>{pick('Every claim carries its evidence trail.', 'हर दावे के साथ प्रमाण की कड़ी।')}</h2></div><div className="value-grid">{capabilities.map(([title, body], index) => <article key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{body}</p></article>)}</div></section><section className="honest-boundary"><div><strong>{pick('FIRST30 proves', 'FIRST30 साबित करता है')}</strong><p>{pick('Which evidence supports each fact and whether packaged files changed.', 'कौन-सा प्रमाण तथ्य को समर्थन देता है और पैकेज फ़ाइलें बदलीं या नहीं।')}</p></div><i aria-hidden="true">→</i><div><strong>{pick('The citizen explains', 'नागरिक समझाता है')}</strong><p>{pick('Unknown facts and unresolved differences that remain in the passport.', 'अज्ञात तथ्य और अनसुलझे अंतर जो पासपोर्ट में रहते हैं।')}</p></div><i aria-hidden="true">→</i><div><strong>{pick('FIRST30 never claims', 'FIRST30 दावा नहीं करता')}</strong><p>{pick('Truth, institutional acceptance, frozen funds or recovery.', 'सत्य, संस्थागत स्वीकृति, रोकी गई राशि या वापसी।')}</p></div></section><SafetyFooter /></main>;
+
+  return <main className="site-shell"><Header />
+    <section className="urgent-service-strip" aria-label={pick('Urgent financial fraud guidance', 'तत्काल वित्तीय धोखाधड़ी मार्गदर्शन')}>
+      <strong>{pick('Money just left your account?', 'क्या अभी आपके खाते से पैसे गए हैं?')}</strong>
+      <span>{pick('Call 1930 now, contact your bank and never share an OTP.', 'अभी 1930 पर कॉल करें, अपने बैंक से संपर्क करें और OTP कभी साझा न करें।')}</span>
+    </section>
+
+    <section className="ncrp-hero">
+      <div className="ncrp-hero-copy">
+        <p className="eyebrow">{pick('A reimagined financial cyber-fraud journey', 'वित्तीय साइबर धोखाधड़ी की नई रिपोर्टिंग यात्रा')}</p>
+        <h1>{pick('Report the fraud—not the same details again and again.', 'धोखाधड़ी रिपोर्ट करें—एक ही जानकारी बार-बार नहीं।')}</h1>
+        <p>{pick('FIRST30 turns scattered evidence into a complete complaint, shows what is missing and lets a citizen submit and track one clear mock report from start to finish.', 'FIRST30 बिखरे प्रमाण को पूरी शिकायत में बदलता है, कमी दिखाता है और नागरिक को एक स्पष्ट मॉक रिपोर्ट शुरू से अंत तक जमा और ट्रैक करने देता है।')}</p>
+        <div className="hero-actions">
+          <Link className="primary-button" href="/report">{pick('Start synthetic report', 'काल्पनिक रिपोर्ट शुरू करें')} →</Link>
+          <Link className="secondary-button" href="/cases">{pick('Track demo complaint', 'डेमो शिकायत ट्रैक करें')}</Link>
+        </div>
+        <small>{pick('Independent hackathon prototype · mock NCRP backend · synthetic data only', 'स्वतंत्र हैकाथॉन प्रोटोटाइप · मॉक NCRP बैकएंड · केवल काल्पनिक डेटा')}</small>
+      </div>
+      <aside className="journey-card" aria-label={pick('Simplified reporting journey', 'सरल रिपोर्टिंग यात्रा')}>
+        <div className="journey-card-top"><span>FIRST30</span><strong>{pick('One citizen journey', 'एक नागरिक यात्रा')}</strong></div>
+        <ol>{stages.map(([title, body], index) => <li key={title}><span>{index + 1}</span><div><strong>{title}</strong><small>{body}</small></div></li>)}</ol>
+        <p>{pick('No government, police or bank system is contacted.', 'किसी सरकारी, पुलिस या बैंक प्रणाली से संपर्क नहीं किया जाता।')}</p>
+      </aside>
+    </section>
+
+    <section className="before-after-section">
+      <div><p className="eyebrow">{pick('The problem', 'समस्या')}</p><h2>{pick('A victim is stressed. The form adds more work.', 'पीड़ित तनाव में है। फॉर्म और काम बढ़ाता है।')}</h2></div>
+      <div className="before-after-grid">
+        <article className="before-card"><span>{pick('Current experience', 'मौजूदा अनुभव')}</span><ul><li>{pick('Requirements are understood before the incident can be explained.', 'घटना बताने से पहले आवश्यकताएँ समझनी पड़ती हैं।')}</li><li>{pick('Evidence and transaction facts are entered separately.', 'प्रमाण और लेन-देन तथ्य अलग-अलग भरे जाते हैं।')}</li><li>{pick('Long forms make failure or lost progress costly.', 'लंबे फॉर्म में विफलता या प्रगति खोना महँगा पड़ता है।')}</li></ul></article>
+        <article className="after-card"><span>{pick('FIRST30 redesign', 'FIRST30 पुनर्रचना')}</span><ul><li>{pick('Urgent actions appear before paperwork.', 'कागजी काम से पहले जरूरी कदम दिखते हैं।')}</li><li>{pick('Evidence supplies facts and exposes contradictions.', 'प्रमाण तथ्य देता है और विरोध दिखाता है।')}</li><li>{pick('The complete draft is saved, reviewed and tracked.', 'पूरा मसौदा सहेजा, जाँचा और ट्रैक किया जाता है।')}</li></ul></article>
+      </div>
+    </section>
+    <SafetyFooter />
+  </main>;
 }

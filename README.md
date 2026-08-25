@@ -1,60 +1,51 @@
-# FIRST30 Evidence Passport
+# FIRST30 — Reimagined financial cyber-fraud reporting
 
 ![FIRST30](public/og.png)
 
-FIRST30 shows what financial-fraud evidence actually supports before a citizen reports it. It analyses a synthetic payment receipt, scam conversation and call log locally, links every confirmed fact to its source, exposes contradictions, records custody events and exports a tamper-evident Evidence Passport.
+FIRST30 is an independent, end-to-end redesign of the citizen journey for reporting financial cyber fraud. A fictional citizen explains the incident once, uploads evidence once, reviews every extracted fact, submits to a clearly labelled mock NCRP backend, receives a demo acknowledgement and answers an additional evidence request without leaving FIRST30.
 
-> FIRST30 is an independent synthetic prototype. It does not submit reports, contact banks or government systems, establish that a claim is true, freeze funds or recover money. For a real financial cyber-fraud incident in India, call **1930**.
+> FIRST30 is a synthetic hackathon prototype. It does not contact NCRP, police, a bank or any government system, and it does not freeze or recover money. For a real financial cyber-fraud incident in India, call **1930**, contact the bank through a trusted number and never share an OTP.
 
-## Why this is different from an AI complaint writer
+## Complete demo journey
 
-AI can draft prose. FIRST30 preserves the evidence trail:
+1. Open `/report` and use the visible fictional login:
+   - Mobile: `90000 00000`
+   - OTP: `123456`
+   - Citizen: Sunita Sharma
+2. Complete urgent triage: fraud type, payment channel, amount, timing and whether 1930 or the bank was contacted.
+3. Load the three-file synthetic evidence set. FIRST30 analyses the receipt, scam chat and call log locally.
+4. Review source-linked facts. The demo deliberately exposes a ₹18,499 versus ₹18,400 mismatch.
+5. Describe the incident naturally and review the fictional complainant profile.
+6. Preview the exact structured payload and submit it to the **mock** backend.
+7. Track the `F30-DEMO-...` acknowledgement and answer the mock bank-statement request.
+8. Download the complaint receipt and signed Evidence Passport ZIP, then verify the ZIP at `/verify`.
 
-- Source-linked observations for amount, reference, recipient, institution, phone and timestamps
-- Deterministic cross-evidence agreement, conflict and missing-information checks
-- Explicit `Evidence supported`, `Manually entered` and `Unknown` resolutions
-- SHA-256 hashing, duplicate rejection and custody records
-- Conflict explanations that never remove the original red flag
-- Whole-ZIP verification without uploading evidence bytes
+Progress is stored in D1 and evidence bytes in R2-compatible storage under an anonymous signed 24-hour session. A session can contain at most three synthetic cases.
 
-## Judged demo
+## How evidence analysis works
 
-1. Open `/report` and choose **Load synthetic evidence set**.
-2. FIRST30 creates and analyses a receipt, scam-chat screenshot and call-log screenshot through the same local pipeline.
-3. The fact board links observations to sources and exposes the deliberate ₹18,499 versus ₹18,400 mismatch.
-4. Confirm the canonical facts or mark unavailable values `Unknown`.
-5. Build the Evidence Passport.
-6. Upload the downloaded ZIP at `/verify`; every packaged file is unpacked and hashed locally before the recorded signature is checked.
+Evidence is never sent to an OCR or AI provider. Bundled Tesseract runs in a browser Web Worker using local worker, WebAssembly and English-language assets. Fixed parsers then identify and normalize Indian amounts, UTR/reference numbers, UPI IDs, phone numbers, institutions and timestamps. Deterministic rules mark each result as supported, missing or conflicting and preserve the source behind every fact.
 
-## Evidence Passport ZIP
+If OCR cannot read an image, the citizen can retry or transcribe visible text manually. The judged samples have a clearly labelled deterministic fallback so the demo remains reliable.
 
-```text
-FIRST30-Evidence-Passport-<verification-code>.zip
-├── FIRST30-evidence-passport.pdf
-├── passport.json
-├── manifest.json
-└── evidence/
-    ├── receipt.png
-    ├── chat.png
-    └── call-log.png
+## Evidence Passport
+
+The downloadable ZIP contains original evidence, a bilingual PDF, `passport.json` and a signed `manifest.json`. SHA-256 hashes detect changed or missing files. ZIP verification happens locally; only the verification code, canonical manifest hash and signature reach the server. Verification proves package integrity and internal consistency—not that the allegation is true or institutionally accepted.
+
+## Run locally
+
+```bash
+npm ci
+npm run dev
 ```
 
-The PDF contains the sufficiency matrix, fact-to-source mapping, chronology, unresolved conflicts, evidence checksums and English/Hindi citizen-document appendices. Verification proves that the signed package and its listed files are unchanged; it does not prove institutional acceptance or factual truth.
-
-## Local analysis and fallback
-
-- Browser-native text detection is used when available.
-- The built-in judged samples use bundled deterministic text fixtures and parsers when browser text detection is unavailable.
-- Custom synthetic images fall back to a manual source-text review when local text detection is unavailable.
-- No external AI or OCR API is called.
-
-## Run with Docker and OrbStack
+Or with Docker and OrbStack:
 
 ```bash
 docker compose up --build app
 ```
 
-Open [http://localhost:3000](http://localhost:3000). D1 and R2 state persists in named Docker volumes.
+Open [http://localhost:3000](http://localhost:3000). D1 and R2 development state persists in named volumes.
 
 Production-style container:
 
@@ -69,7 +60,7 @@ docker compose --profile production up --build app-prod
 | `SESSION_SECRET` | Yes | Signs anonymous sessions and Evidence Passport manifests |
 | `FIRST30_PORT` | No | Changes the Docker Compose host port |
 
-Never commit `.env` files or real evidence. This hackathon build accepts synthetic evidence only.
+No OpenAI, OCR, government, police or bank API key is required. Never commit `.env` files or real evidence; the repository tracks only `.env.example` placeholders.
 
 ## Validation
 

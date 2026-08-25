@@ -136,3 +136,33 @@ export const caseExports = sqliteTable('case_exports', {
   uniqueIndex('idx_case_exports_case_fingerprint').on(table.caseId, table.contentFingerprint),
   index('idx_case_exports_case_version').on(table.caseId, table.version),
 ]);
+
+export const caseIntake = sqliteTable('case_intake', {
+  caseId: text('case_id').primaryKey().references(() => cases.id, { onDelete: 'cascade' }),
+  lossTiming: text('loss_timing').notNull().default('under_30_minutes'),
+  helplineContacted: integer('helpline_contacted', { mode: 'boolean' }).notNull().default(false),
+  bankContacted: integer('bank_contacted', { mode: 'boolean' }).notNull().default(false),
+  delayReason: text('delay_reason').notNull().default(''),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const complainantProfiles = sqliteTable('complainant_profiles', {
+  caseId: text('case_id').primaryKey().references(() => cases.id, { onDelete: 'cascade' }),
+  fullName: text('full_name').notNull(), mobile: text('mobile').notNull(), gender: text('gender').notNull(),
+  dateOfBirth: text('date_of_birth').notNull(), relationName: text('relation_name').notNull(), address: text('address').notNull(),
+  state: text('state').notNull(), district: text('district').notNull(), policeStation: text('police_station').notNull(),
+  pincode: text('pincode').notNull(), updatedAt: integer('updated_at').notNull(),
+});
+
+export const complaintSubmissions = sqliteTable('complaint_submissions', {
+  id: text('id').primaryKey(), caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  acknowledgement: text('acknowledgement').notNull(), status: text('status').notNull().default('action_required'),
+  payloadJson: text('payload_json').notNull(), submittedAt: integer('submitted_at').notNull(), updatedAt: integer('updated_at').notNull(),
+}, (table) => [uniqueIndex('idx_complaint_submissions_case').on(table.caseId), uniqueIndex('idx_complaint_submissions_ack').on(table.acknowledgement)]);
+
+export const informationRequestResponses = sqliteTable('information_request_responses', {
+  id: text('id').primaryKey(), requestId: text('request_id').notNull().references(() => informationRequests.id, { onDelete: 'cascade' }),
+  caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  evidenceId: text('evidence_id').notNull().references(() => evidence.id, { onDelete: 'cascade' }),
+  note: text('note').notNull(), createdAt: integer('created_at').notNull(),
+}, (table) => [uniqueIndex('idx_request_responses_request').on(table.requestId), index('idx_request_responses_case').on(table.caseId)]);

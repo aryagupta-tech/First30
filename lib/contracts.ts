@@ -2,9 +2,9 @@ import { z } from 'zod';
 
 export type Locale = 'en' | 'hi';
 export type FraudChannel = 'upi' | 'card' | 'bank_transfer' | 'wallet';
-export type CaseStatus = 'draft' | 'review_needed' | 'ready' | 'exported';
+export type CaseStatus = 'draft' | 'evidence_review' | 'ready_to_submit' | 'submitted' | 'action_required' | 'evidence_received' | 'review_needed' | 'ready' | 'exported';
 export type MilestoneKind = 'bank_contacted' | 'helpline_called' | 'cyber_report_submitted' | 'follow_up';
-export type EvidenceKind = 'receipt' | 'chat' | 'call_log';
+export type EvidenceKind = 'receipt' | 'chat' | 'call_log' | 'bank_statement';
 export type FactKey = 'amount' | 'reference' | 'recipient' | 'institution' | 'phone' | 'occurred_at';
 export type Observation = { field: FactKey; value: string; normalizedValue: string; sourceText: string; confidence: number };
 
@@ -27,7 +27,7 @@ export const extractionSchema = z.object({
   recipient: z.object({ value: z.union([z.string(), z.null()]), confidence: z.number().min(0).max(1) }),
 });
 
-export const evidenceKindSchema = z.enum(['receipt', 'chat', 'call_log']);
+export const evidenceKindSchema = z.enum(['receipt', 'chat', 'call_log', 'bank_statement']);
 export const factKeySchema = z.enum(['amount', 'reference', 'recipient', 'institution', 'phone', 'occurred_at']);
 export const observationSchema = z.object({
   field: factKeySchema,
@@ -38,7 +38,7 @@ export const observationSchema = z.object({
 });
 export const evidenceAnalysisSchema = z.object({
   ocrText: z.string().max(12_000),
-  ocrMethod: z.enum(['browser_ocr', 'bundled_sample', 'manual']),
+  ocrMethod: z.enum(['tesseract_local', 'bundled_sample', 'manual']),
   clientSha256: z.string().regex(/^[a-f0-9]{64}$/),
   observations: z.array(observationSchema).max(30),
 });
@@ -49,6 +49,46 @@ export const factResolutionSchema = z.object({
   sourceEvidenceId: z.string().uuid().nullable().optional(),
 });
 export const findingAcknowledgementSchema = z.object({ note: z.string().min(3).max(500) });
+
+export const demoLoginSchema = z.object({
+  locale: z.enum(['en', 'hi']).default('en'),
+  mobile: z.string().transform((value) => value.replace(/\D/g, '')).pipe(z.literal('9000000000')),
+  otp: z.literal('123456'),
+});
+
+export const intakeSchema = z.object({
+  fraudType: z.enum(['fake_kyc', 'vishing', 'marketplace', 'job_scam', 'investment', 'other']),
+  channel: z.enum(['upi', 'card', 'bank_transfer', 'wallet']),
+  lossTiming: z.enum(['under_30_minutes', 'today', 'earlier']),
+  helplineContacted: z.boolean(),
+  bankContacted: z.boolean(),
+  delayReason: z.string().max(500).default(''),
+  amount: z.number().int().min(1).max(10_000_000),
+  occurredAt: z.string().min(8).max(80),
+});
+
+export const complainantProfileSchema = z.object({
+  fullName: z.string().min(2).max(100),
+  mobile: z.string().min(10).max(20),
+  gender: z.enum(['female', 'male', 'other', 'prefer_not_to_say']),
+  dateOfBirth: z.string().min(8).max(20),
+  relationName: z.string().min(2).max(100),
+  address: z.string().min(8).max(300),
+  state: z.string().min(2).max(80),
+  district: z.string().min(2).max(80),
+  policeStation: z.string().min(2).max(120),
+  pincode: z.string().regex(/^\d{6}$/),
+});
+
+export const mockSubmissionSchema = z.object({
+  consent: z.literal(true),
+  syntheticConfirmation: z.literal(true),
+});
+
+export const requestResponseSchema = z.object({
+  evidenceId: z.string().uuid(),
+  note: z.string().min(3).max(500),
+});
 
 export const caseFieldsSchema = z.object({
   fraudType: z.string().min(1).max(60),
@@ -126,6 +166,12 @@ export const SAMPLE_CALL_LOG_TEXT = `Recent calls
 Incoming call
 21/08/2026 18:28
 Duration 06:12`;
+
+export const SAMPLE_BANK_STATEMENT_TEXT = `Bharat Cooperative Bank
+Synthetic mini statement
+21/08/2026 18:42 UPI debit ₹18,499.00
+UTR UTR826194730521
+To verify.kyc@fakeupi`;
 
 export const SAMPLE_EXTRACTION: EvidenceExtraction = {
   amount: { value: 18499, confidence: 0.99 },

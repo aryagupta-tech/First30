@@ -26,6 +26,10 @@ const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS incident_events (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, occurred_at TEXT NOT NULL, event_type TEXT NOT NULL, description_en TEXT NOT NULL, description_hi TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'citizen', position INTEGER NOT NULL DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS milestones (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, kind TEXT NOT NULL, reference TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', occurred_at TEXT NOT NULL, created_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS case_exports (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, version INTEGER NOT NULL, verification_code TEXT NOT NULL, content_fingerprint TEXT NOT NULL, manifest_hash TEXT NOT NULL, signature TEXT NOT NULL, manifest_json TEXT NOT NULL, file_count INTEGER NOT NULL, created_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS case_intake (case_id TEXT PRIMARY KEY, loss_timing TEXT NOT NULL DEFAULT 'under_30_minutes', helpline_contacted INTEGER NOT NULL DEFAULT 0, bank_contacted INTEGER NOT NULL DEFAULT 0, delay_reason TEXT NOT NULL DEFAULT '', updated_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS complainant_profiles (case_id TEXT PRIMARY KEY, full_name TEXT NOT NULL, mobile TEXT NOT NULL, gender TEXT NOT NULL, date_of_birth TEXT NOT NULL, relation_name TEXT NOT NULL, address TEXT NOT NULL, state TEXT NOT NULL, district TEXT NOT NULL, police_station TEXT NOT NULL, pincode TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS complaint_submissions (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, acknowledgement TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'action_required', payload_json TEXT NOT NULL, submitted_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS information_request_responses (id TEXT PRIMARY KEY, request_id TEXT NOT NULL, case_id TEXT NOT NULL, evidence_id TEXT NOT NULL, note TEXT NOT NULL, created_at INTEGER NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_cases_session_updated ON cases(session_id, updated_at)`,
   `CREATE INDEX IF NOT EXISTS idx_evidence_case ON evidence(case_id)`,
   `CREATE INDEX IF NOT EXISTS idx_events_case_created ON case_events(case_id, created_at)`,
@@ -43,6 +47,10 @@ const schemaStatements = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_case_exports_verification_code ON case_exports(verification_code)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_case_exports_case_fingerprint ON case_exports(case_id, content_fingerprint)`,
   `CREATE INDEX IF NOT EXISTS idx_case_exports_case_version ON case_exports(case_id, version)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_complaint_submissions_case ON complaint_submissions(case_id)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_complaint_submissions_ack ON complaint_submissions(acknowledgement)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_request_responses_request ON information_request_responses(request_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_request_responses_case ON information_request_responses(case_id)`,
 ];
 
 let schemaReady: Promise<void> | null = null;
@@ -111,7 +119,7 @@ export async function createSession(locale = 'en') {
   return id;
 }
 
-const childTables = ['evidence_analysis', 'evidence_observations', 'evidence_integrity', 'fact_resolutions', 'passport_findings', 'custody_events', 'incident_events', 'milestones', 'case_exports', 'evidence', 'case_events', 'information_requests', 'restorations', 'transactions', 'suspects'];
+const childTables = ['evidence_analysis', 'evidence_observations', 'evidence_integrity', 'fact_resolutions', 'passport_findings', 'custody_events', 'incident_events', 'milestones', 'case_exports', 'information_request_responses', 'complaint_submissions', 'complainant_profiles', 'case_intake', 'evidence', 'case_events', 'information_requests', 'restorations', 'transactions', 'suspects'];
 
 export async function purgeExpired() {
   const now = Date.now();
@@ -181,7 +189,7 @@ export async function recordCustody(caseId: string, evidenceId: string | null, a
 
 export async function caseBundle(sessionId: string, caseId: string) {
   const caseRow = await ownedCase(sessionId, caseId);
-  const [evidenceRows, chronology, milestones, exports, passportDataResult, findings, custody] = await Promise.all([
+  const [evidenceRows, chronology, milestones, exports, passportDataResult, findings, custody, intake, profile, submission, requests, requestResponses, events] = await Promise.all([
     env.DB.prepare('SELECT e.*, i.sha256, i.ocr_text, i.extraction_json, i.confirmed_at, a.client_sha256, a.ocr_method, a.analysis_status, a.analysed_at FROM evidence e LEFT JOIN evidence_integrity i ON i.evidence_id = e.id LEFT JOIN evidence_analysis a ON a.evidence_id = e.id WHERE e.case_id = ? ORDER BY e.created_at, e.id').bind(caseId).all<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM incident_events WHERE case_id = ? ORDER BY position, occurred_at, id').bind(caseId).all<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM milestones WHERE case_id = ? ORDER BY occurred_at DESC, created_at DESC, id').bind(caseId).all<Record<string, unknown>>(),
@@ -189,12 +197,18 @@ export async function caseBundle(sessionId: string, caseId: string) {
     passportData(caseId),
     env.DB.prepare('SELECT * FROM passport_findings WHERE case_id = ? ORDER BY status, rule_code').bind(caseId).all<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM custody_events WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
+    env.DB.prepare('SELECT * FROM case_intake WHERE case_id = ?').bind(caseId).first<Record<string, unknown>>(),
+    env.DB.prepare('SELECT * FROM complainant_profiles WHERE case_id = ?').bind(caseId).first<Record<string, unknown>>(),
+    env.DB.prepare('SELECT * FROM complaint_submissions WHERE case_id = ?').bind(caseId).first<Record<string, unknown>>(),
+    env.DB.prepare('SELECT * FROM information_requests WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
+    env.DB.prepare('SELECT * FROM information_request_responses WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
+    env.DB.prepare('SELECT * FROM case_events WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
   ]);
   const contradictions = passportDataResult.passport.checks.filter((item) => item.status === 'conflict').map((item) => item.detailEn);
   const readiness = evaluateReadiness({
     amount: Number(caseRow.amount || 0), occurredAt: String(caseRow.occurred_at || ''), reference: String(caseRow.reference || ''), bank: String(caseRow.bank || ''), recipient: String(caseRow.recipient || ''), narrative: String(caseRow.narrative_input || ''), evidence: evidenceRows.results || [], contradictions,
   });
-  return { case: caseRow, evidence: evidenceRows.results, chronology: chronology.results, milestones: milestones.results, exports: exports.results, readiness, observations: passportDataResult.observations, resolutions: passportDataResult.resolutions, passport: passportDataResult.passport, findings: findings.results, custody: custody.results };
+  return { case: caseRow, evidence: evidenceRows.results, chronology: chronology.results, milestones: milestones.results, exports: exports.results, readiness, observations: passportDataResult.observations, resolutions: passportDataResult.resolutions, passport: passportDataResult.passport, findings: findings.results, custody: custody.results, intake, profile, submission, requests: requests.results, requestResponses: requestResponses.results, events: events.results };
 }
 
 export async function caseFingerprint(sessionId: string, caseId: string) {

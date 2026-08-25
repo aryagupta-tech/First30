@@ -1,21 +1,31 @@
-# FIRST30 Evidence Passport — video script
+# FIRST30 — two-minute video script
 
-“An AI can write a complaint. But after fraud, the harder question is: which evidence supports every claim, what conflicts, and has the shared file changed?”
+## 0:00–1:00 · Citizen journey
 
-“FIRST30 answers that with an Evidence Passport.”
+“After financial cyber fraud, victims face a second problem: complicated requirements, repeated forms, unclear evidence and lost progress. FIRST30 is our independent redesign of that journey.”
 
-Load the three-file synthetic case. Show the receipt, scam conversation and call log appearing in the evidence rail.
+Show the warning strip. “For a real incident, call 1930, contact the bank through a trusted number and never share an OTP.”
 
-“The analysis runs locally. FIRST30 links the amount, recipient, caller and timestamps back to their original files.”
+Open `/report`. Use mobile `90000 00000` and OTP `123456`. “This is Sunita Sharma, a completely fictional citizen.”
 
-Show the source chips and sufficiency matrix.
+Complete urgent triage for the ₹18,499 UPI loss, then load the three-file sample.
 
-“Here, the receipt records ₹18,499 while the scam message says ₹18,400. FIRST30 does not hide or ‘correct’ the discrepancy. It exports the red flag, with any citizen explanation attached.”
+“The receipt, scam chat and call log are read locally. Each fact stays linked to its source. FIRST30 catches the ₹18,499 receipt and ₹18,400 message mismatch instead of silently choosing one.”
 
-Build and download the Evidence Passport. Briefly show the PDF, `passport.json`, `manifest.json` and originals.
+Continue to the complaint. “Sunita explains the incident naturally—no awkward character restriction. FIRST30 turns confirmed facts into the structured bilingual complaint.”
 
-Upload the whole ZIP on the verification page.
+Show the exact payload and the mock warning, then submit. “This `F30-DEMO` acknowledgement exists only inside FIRST30. Nothing was sent to a real institution.”
 
-“Every file is re-hashed inside the browser. Only the verification code, manifest hash and signature reach FIRST30.”
+## 1:00–2:00 · Follow-up and build decisions
 
-“FIRST30 does not claim that a bank accepted the case or that money was recovered. It gives citizens and recipients something more defensible than AI prose: a source-linked, tamper-evident evidence file.”
+Show tracking and the additional bank-statement request. Attach the synthetic statement and show the completed timeline.
+
+“Citizens do not lose context when more evidence is requested. The report, acknowledgement, timeline and response remain together.”
+
+Download the package. “The Evidence Passport adds source mapping, conflicts, original files and SHA-256 checksums. A recipient can verify the whole ZIP locally without uploading evidence.”
+
+“No runtime AI or OCR API is required. Bundled Tesseract runs in a browser Web Worker; transparent parsers normalize Indian payment facts; deterministic rules expose support, gaps and conflicts. D1 stores structured case data, R2-compatible storage holds evidence, and signed 24-hour sessions protect ownership.”
+
+“Codex helped us research the brief and NCRP journey, design the citizen experience, implement and validate the working prototype.”
+
+End on the landing page: “FIRST30: explain once, upload once, review clearly, submit and track.”

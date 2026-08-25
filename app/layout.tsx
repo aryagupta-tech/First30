@@ -11,10 +11,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const metadataBase = new URL(process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`);
   return {
     metadataBase,
-    title: 'FIRST30 — Know what your evidence proves',
-    description: 'Connect fraud facts to their sources, expose contradictions and build a tamper-evident Evidence Passport.',
-    openGraph: { title: 'FIRST30 Evidence Passport', description: 'AI writes. FIRST30 traces every fact back to evidence.', images: ['/og.png'] },
-    twitter: { card: 'summary_large_image', title: 'FIRST30 Evidence Passport', description: 'AI writes. FIRST30 traces every fact back to evidence.', images: ['/og.png'] },
+    title: 'FIRST30 — Report financial cyber fraud without starting over',
+    description: 'A complete independent redesign of the financial cyber-fraud reporting journey: triage, evidence review, complaint, mock submission and tracking.',
+    openGraph: { title: 'FIRST30 — Explain once. Upload once. Track clearly.', description: 'A citizen-first financial cyber-fraud reporting redesign with local evidence analysis and a transparent mock backend.', images: ['/og.png'] },
+    twitter: { card: 'summary_large_image', title: 'FIRST30 — Explain once. Upload once. Track clearly.', description: 'A citizen-first financial cyber-fraud reporting redesign.', images: ['/og.png'] },
   };
 }
 

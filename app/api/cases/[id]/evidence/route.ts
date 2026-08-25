@@ -8,13 +8,14 @@ const allowed = new Set(['image/png', 'image/jpeg', 'image/webp']);
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await ensureSchema();
-    const sessionId = await requireSession(request); const { id } = await context.params; await ownedCase(sessionId, id);
+    const sessionId = await requireSession(request); const { id } = await context.params; const caseRow = await ownedCase(sessionId, id);
     const form = await request.formData(); const synthetic = form.get('synthetic') === 'true';
     if (!synthetic) return json({ error: 'Confirm that the evidence is synthetic demo data.' }, { status: 400 });
     const file = form.get('file');
     if (!(file instanceof File)) return json({ error: 'Choose a synthetic evidence image.' }, { status: 400 });
     if (!allowed.has(file.type) || file.size > 5 * 1024 * 1024) return json({ error: 'Upload a PNG, JPEG or WebP image under 5 MB.' }, { status: 400 });
     const kind = evidenceKindSchema.parse(String(form.get('kind') || 'receipt'));
+    if (caseRow.submitted_at && kind !== 'bank_statement') return json({ error: 'Only evidence requested by the mock follow-up can be added after submission.' }, { status: 409 });
     const bytes = await file.arrayBuffer();
     if (detectImageMime(bytes) !== file.type) return json({ error: 'The selected file does not contain a valid PNG, JPEG or WebP image.' }, { status: 400 });
     const digest = await sha256Hex(bytes);
@@ -28,7 +29,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       env.DB.prepare('INSERT INTO evidence_integrity (evidence_id, sha256) VALUES (?, ?)').bind(evidenceId, digest),
       env.DB.prepare("INSERT INTO evidence_analysis (evidence_id, client_sha256, ocr_method, analysis_status) VALUES (?, ?, 'manual', 'pending')").bind(evidenceId, digest),
       env.DB.prepare('INSERT INTO custody_events (id, case_id, evidence_id, action, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), id, evidenceId, 'added', `${kind} evidence added with SHA-256 ${digest}`, now),
-      env.DB.prepare("UPDATE cases SET status = 'review_needed', updated_at = ? WHERE id = ? AND session_id = ?").bind(now, id, sessionId),
+      env.DB.prepare("UPDATE cases SET status = CASE WHEN submitted_at IS NULL THEN 'evidence_review' ELSE status END, step = CASE WHEN submitted_at IS NULL THEN 2 ELSE step END, updated_at = ? WHERE id = ? AND session_id = ?").bind(now, id, sessionId),
     ]);
     return json({ id: evidenceId, sha256: digest, filename: file.name, size: file.size, mimeType: file.type }, { status: 201 });
   } catch (error) { return errorResponse(error); }
