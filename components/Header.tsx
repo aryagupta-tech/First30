@@ -5,26 +5,14 @@ import { useLocale } from './LocaleProvider';
 
 export function Header({ compact = false }: { compact?: boolean }) {
   const { locale, setLocale, pick } = useLocale();
-  return (
-    <header className={`topbar ${compact ? 'topbar-compact' : ''}`}>
-      <Link className="brand" href="/" aria-label="FIRST30 home">
-        <span className="brand-mark">30</span><span>FIRST30</span>
-      </Link>
-      <div className="topbar-actions">
-        <Link className="header-link" href="/verify">{pick('Verify a ZIP', 'ZIP सत्यापित करें')}</Link>
-        <span className="prototype-pill">{pick('Independent · mock systems', 'स्वतंत्र · मॉक सिस्टम')}</span>
-        <button className="language-button" type="button" onClick={() => setLocale(locale === 'en' ? 'hi' : 'en')} aria-label={pick('Switch to Hindi', 'अंग्रेज़ी में बदलें')}>
-          {locale === 'en' ? 'हिंदी' : 'EN'}
-        </button>
-      </div>
-    </header>
-  );
+  return <header className={`topbar ${compact ? 'topbar-compact' : ''}`}>
+    <Link className="brand" href="/" aria-label="FIRST30 home"><span className="brand-mark">30</span><span>FIRST30</span></Link>
+    <nav className="topbar-nav" aria-label={pick('Primary navigation', 'मुख्य नेविगेशन')}><Link href="/report">{pick('Report', 'रिपोर्ट')}</Link><Link href="/cases">{pick('Cases', 'केस')}</Link><Link href="/verify">{pick('Verify', 'सत्यापित')}</Link></nav>
+    <div className="topbar-actions"><span className="prototype-pill"><i /> {pick('Independent prototype', 'स्वतंत्र प्रोटोटाइप')}</span><button className="language-button" type="button" onClick={() => setLocale(locale === 'en' ? 'hi' : 'en')} aria-label={pick('Switch to Hindi', 'अंग्रेज़ी में बदलें')}>{locale === 'en' ? 'हिंदी' : 'EN'}</button>{!compact && <Link className="header-cta" href="/report">{pick('Start report', 'रिपोर्ट शुरू करें')} <span>↗</span></Link>}</div>
+  </header>;
 }
 
 export function SafetyFooter() {
   const { pick } = useLocale();
-  return <footer className="safety-footer">{pick(
-    'For a real financial cyber-fraud incident in India, call the national helpline at 1930. FIRST30 does not contact government, police or banking systems.',
-    'भारत में वास्तविक वित्तीय साइबर धोखाधड़ी के लिए राष्ट्रीय हेल्पलाइन 1930 पर कॉल करें। FIRST30 सरकार, पुलिस या बैंकिंग सिस्टम से संपर्क नहीं करता।',
-  )}</footer>;
+  return <footer className="safety-footer"><div><Link className="brand footer-brand" href="/"><span className="brand-mark">30</span><span>FIRST30</span></Link><p>{pick('An independent reimagining of the financial cyber-fraud reporting journey.', 'वित्तीय साइबर धोखाधड़ी रिपोर्टिंग यात्रा की स्वतंत्र पुनर्कल्पना।')}</p></div><div><strong>{pick('Real incident?', 'वास्तविक घटना?')}</strong><p>{pick('Call 1930, contact your bank and never share an OTP. FIRST30 does not contact government, police or banking systems.', '1930 पर कॉल करें, बैंक से संपर्क करें और OTP कभी साझा न करें। FIRST30 सरकार, पुलिस या बैंकिंग सिस्टम से संपर्क नहीं करता।')}</p></div></footer>;
 }
