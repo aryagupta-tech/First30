@@ -3,7 +3,7 @@ import { strToU8, zipSync } from 'fflate';
 import { COPY, SAMPLE_BANK_STATEMENT_TEXT, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, complainantProfileSchema, demoLoginSchema, extractionSchema, intakeSchema, manifestCoreSchema, mockSubmissionSchema } from './contracts';
 import { derivePassport, normalizeFact, observationsFromText } from './evidence-passport';
 import { detectImageMime, findContradictions, parseReceiptText, sha256Hex, stableJson } from './response-file';
-import { caseStatusFor, evaluateReadiness, isExportable } from './workflow';
+import { canTransition, caseStatusFor, evaluateReadiness, isExportable } from './workflow';
 import { verifyArchiveLocally } from './package-verification';
 
 describe('local receipt processing', () => {
@@ -84,6 +84,13 @@ describe('Evidence Passport analysis', () => {
 });
 
 describe('synthetic reporting journey contracts', () => {
+  it('allows only the government-style reporting workflow order', () => {
+    expect(canTransition('draft', 'evidence_review')).toBe(true);
+    expect(canTransition('ready_to_submit', 'submitted')).toBe(true);
+    expect(canTransition('submitted', 'evidence_received')).toBe(false);
+    expect(canTransition('evidence_received', 'draft')).toBe(false);
+  });
+
   it('accepts only the visible demo credentials', () => {
     expect(demoLoginSchema.parse({ mobile: '90000 00000', otp: '123456', locale: 'en' }).mobile).toBe('9000000000');
     expect(() => demoLoginSchema.parse({ mobile: '90000 00001', otp: '123456', locale: 'en' })).toThrow();

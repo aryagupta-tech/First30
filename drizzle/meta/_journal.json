@@ -29,6 +29,13 @@
       "when": 1787676437638,
       "tag": "0003_slippery_madripoor",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1787682447195,
+      "tag": "0004_safe_scrambler",
+      "breakpoints": true
     }
   ]
 }

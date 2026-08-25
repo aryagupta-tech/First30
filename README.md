@@ -2,7 +2,7 @@
 
 ![FIRST30](public/og.png)
 
-FIRST30 is an independent, end-to-end redesign of the citizen journey for reporting financial cyber fraud. A fictional citizen explains the incident once, uploads evidence once, reviews every extracted fact, submits to a clearly labelled mock NCRP backend, receives a demo acknowledgement and answers an additional evidence request without leaving FIRST30.
+FIRST30 is an independent, end-to-end redesign of the citizen journey for reporting financial cyber fraud. It combines a senior-friendly five-step interface with a production-style reporting engine: resumable saves, safe retries, immutable submission snapshots, evidence integrity checks and a transparent processing receipt.
 
 > FIRST30 is a synthetic hackathon prototype. It does not contact NCRP, police, a bank or any government system, and it does not freeze or recover money. For a real financial cyber-fraud incident in India, call **1930**, contact the bank through a trusted number and never share an OTP.
 
@@ -12,15 +12,32 @@ FIRST30 is an independent, end-to-end redesign of the citizen journey for report
    - Mobile: `90000 00000`
    - OTP: `123456`
    - Citizen: Sunita Sharma
-2. Complete urgent triage: fraud type, payment channel, amount, timing and whether 1930 or the bank was contacted.
-3. Load the three-file synthetic evidence set. FIRST30 analyses the receipt, scam chat and call log locally.
-4. Review source-linked facts. The demo deliberately exposes a ₹18,499 versus ₹18,400 mismatch.
-5. Describe the incident naturally and review the fictional complainant profile.
-6. Preview the exact structured payload and submit it to the **mock** backend.
-7. Track the `F30-DEMO-...` acknowledgement and answer the mock bank-statement request.
-8. Download the complaint receipt and signed Evidence Passport ZIP, then verify the ZIP at `/verify`.
+2. Follow Easy Mode: protect yourself, enter payment details, review evidence, explain what happened, then review and submit.
+3. Load the three-file synthetic evidence set. FIRST30 analyses the receipt, scam chat and call log locally and deliberately exposes a ₹18,499 versus ₹18,400 mismatch.
+4. Submit to the **mock** backend and track the `F30-DEMO-...` acknowledgement.
+5. Open “How FIRST30 processed this report” to inspect safe processing, answer the mock bank-statement request, download the signed Evidence Passport ZIP and verify it at `/verify`.
 
 Progress is stored in D1 and evidence bytes in R2-compatible storage under an anonymous signed 24-hour session. A session can contain at most three synthetic cases.
+
+## Government-grade reporting engine
+
+The public demo never contacts NCRP, police, a bank or another private system. It demonstrates the backend pattern an authorised production deployment could use:
+
+- A central command/workflow service allows only valid case transitions.
+- Optimistic case revisions prevent one tab from silently overwriting another.
+- Idempotency records make case creation, upload, submission, export and follow-up responses safe to retry.
+- Submission freezes one encrypted snapshot, creates a workflow and writes a transactional outbox job before returning.
+- A typed `MockNcrpGateway` processes that outbox job. A real deployment could replace it with an authorised queue and NCRP sandbox adapter without changing the citizen flow.
+- Hash-linked, append-only audit events expose tampering; operational logs contain request IDs and safe result codes, not citizen details.
+- Fictional profiles and submission payloads use AES-GCM encryption with domain-separated keys derived from `SESSION_SECRET`.
+- Evidence moves through `pending`, `stored`, `confirmed` and `failed` states so interrupted R2 writes can be retried without creating invisible orphan files.
+- CSRF, same-origin checks, signed cookies, hashed rate-limit identifiers, strict image-signature checks and private no-store evidence responses protect the boundary.
+
+Every successful case response includes a revision and saved time. Mutations carry a CSRF token, an idempotency key and the last known revision. A stale edit receives `409`, while an exact retry reuses its first result.
+
+## Easy Mode and accessibility
+
+Easy Mode is the default reporting interface. It uses five plain-language steps, 18px body text, 52px-or-larger controls, persistent progress and time remaining, large Back/Continue actions, Hindi support, numeric mobile keyboards, visible save/retry states and browser-native read-aloud instructions. Technical words such as OCR, payload and canonical facts stay out of the main journey. Emergency guidance—call 1930, use a trusted bank number and never share an OTP—appears before payment questions.
 
 ## How evidence analysis works
 
@@ -57,7 +74,7 @@ docker compose --profile production up --build app-prod
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `SESSION_SECRET` | Yes | Signs anonymous sessions and Evidence Passport manifests |
+| `SESSION_SECRET` | Yes | Signs sessions/manifests and derives encryption, CSRF, audit and rate-limit keys |
 | `FIRST30_PORT` | No | Changes the Docker Compose host port |
 
 No OpenAI, OCR, government, police or bank API key is required. Never commit `.env` files or real evidence; the repository tracks only `.env.example` placeholders.

@@ -3,6 +3,7 @@ import { manifestCoreSchema } from '@/lib/contracts';
 import { caseBundle, caseFingerprint, ensureSchema, errorResponse, json, requireSession, signBundle } from '@/lib/server';
 import { sha256Hex, stableJson } from '@/lib/response-file';
 import { isExportable } from '@/lib/workflow';
+import { appendAudit, assertCaseRevision, beginIdempotency, finishIdempotency, requestId } from '@/lib/reliability';
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -10,6 +11,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const core = manifestCoreSchema.parse(await request.json());
     if (core.caseId !== id) return json({ error: 'Manifest case does not match.' }, { status: 400 });
     const bundle = await caseBundle(sessionId, id);
+    const operation = await beginIdempotency(request, sessionId, `export:${id}`, core);
+    if (operation.replay && operation.response?.manifest) return json(operation.response);
+    assertCaseRevision(request, bundle.case);
     if (core.format === 'FIRST30-evidence-passport') {
       if (!bundle.evidence.length || bundle.evidence.some((item) => !item.confirmed_at)) return json({ error: 'Confirm at least one evidence item before exporting the passport.' }, { status: 409 });
     } else if (!isExportable(bundle.readiness.level)) return json({ error: 'Resolve the required response-file checks before exporting.', readiness: bundle.readiness }, { status: 409 });
@@ -31,7 +35,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (stableJson(manifest.files) !== stableJson(core.files)) {
         return json({ error: 'This unchanged case produced different package bytes. Refresh the page and rebuild the Evidence Passport.' }, { status: 409 });
       }
-      return json({ manifest, idempotent: true });
+      const response = { manifest, idempotent: true, meta: bundle.meta };
+      await finishIdempotency(sessionId, `export:${id}`, operation.key, response as Record<string, unknown>);
+      return json(response);
     }
     const latest = await env.DB.prepare('SELECT MAX(version) AS version FROM case_exports WHERE case_id = ?').bind(id).first<{ version: number | null }>();
     const version = Number(latest?.version || 0) + 1;
@@ -44,10 +50,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     await env.DB.batch([
       env.DB.prepare('INSERT INTO case_exports (id, case_id, version, verification_code, content_fingerprint, manifest_hash, signature, manifest_json, file_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .bind(crypto.randomUUID(), id, version, verificationCode, fingerprint, manifestHash, signature, JSON.stringify(manifest), core.files.length, now),
-      env.DB.prepare("UPDATE cases SET status = 'exported', acknowledgement = ?, submitted_at = COALESCE(submitted_at, ?), updated_at = ? WHERE id = ? AND session_id = ?")
-        .bind(verificationCode, now, now, id, sessionId),
+      env.DB.prepare('UPDATE cases SET revision = revision + 1, updated_at = ? WHERE id = ? AND session_id = ?')
+        .bind(now, id, sessionId),
       env.DB.prepare('INSERT INTO custody_events (id, case_id, evidence_id, action, detail, created_at) VALUES (?, ?, NULL, ?, ?, ?)').bind(crypto.randomUUID(), id, 'exported', `Evidence Passport version ${version} signed as ${verificationCode}`, now),
     ]);
-    return json({ manifest, idempotent: false }, { status: 201 });
+    await appendAudit(id, 'citizen', 'evidence_passport_exported', requestId(request), { version, fileCount: core.files.length, verificationCode });
+    const response = { manifest, idempotent: false, meta: { caseRevision: Number(bundle.case.revision || 1) + 1, savedAt: now } };
+    await finishIdempotency(sessionId, `export:${id}`, operation.key, response as Record<string, unknown>);
+    return json(response, { status: 201 });
   } catch (error) { return errorResponse(error); }
 }

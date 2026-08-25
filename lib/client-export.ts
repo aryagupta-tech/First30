@@ -2,6 +2,7 @@
 
 import { zipSync, strToU8 } from 'fflate';
 import { callScript, channelDisputeCopy, sha256Hex, stableJson } from './response-file';
+import { api } from './client-api';
 
 type Row = Record<string, string | number | null>;
 type Bundle = { case: Row; evidence: Row[]; chronology: Row[]; observations: Array<Record<string, unknown>>; resolutions: Array<Record<string, unknown>>; findings: Row[]; custody: Row[]; passport: { coverage: { present: number; total: number }; counts: { passed: number; conflicts: number; missing: number; unknownFacts: number }; checks: Array<{ status: string; titleEn: string; detailEn: string }>; facts: Array<{ field: string; resolution: { value?: string; resolutionType?: string } | null; observations: Array<{ filename?: string; value?: string }> }> } };
@@ -169,9 +170,8 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
     findings: bundle.findings.map((item) => ({ ruleCode: item.rule_code, status: item.status, detailEn: item.detail_en, acknowledgementNote: item.acknowledgement_note, acknowledgedAt: item.acknowledged_at })),
   }));
   const core = { format: 'FIRST30-evidence-passport' as const, formatVersion: 2 as const, caseId, createdAt: Date.now(), caseFingerprint, files: manifestFiles };
-  const response = await fetch(`/api/cases/${caseId}/exports`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(core) });
-  const result = await response.json() as { manifest?: Record<string, unknown>; error?: string };
-  if (!response.ok || !result.manifest) throw new Error(result.error || 'Could not sign the Evidence Passport.');
+  const result = await api<{ manifest?: Record<string, unknown>; error?: string }>(`/api/cases/${caseId}/exports`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(core) });
+  if (!result.manifest) throw new Error(result.error || 'Could not sign the Evidence Passport.');
   files['manifest.json'] = strToU8(JSON.stringify(result.manifest, null, 2));
   const zip = zipSync(files, { level: 6 });
   const ownedZip = new Uint8Array(zip.byteLength); ownedZip.set(zip);

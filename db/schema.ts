@@ -17,6 +17,7 @@ export const cases = sqliteTable('cases', {
   acknowledgement: text('acknowledgement'), heldAmount: integer('held_amount').notNull().default(0),
   restoredAmount: integer('restored_amount').notNull().default(0), createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(), submittedAt: integer('submitted_at'),
+  revision: integer('revision').notNull().default(1),
 }, (table) => [index('idx_cases_session_updated').on(table.sessionId, table.updatedAt)]);
 
 export const transactions = sqliteTable('transactions', {
@@ -166,3 +167,63 @@ export const informationRequestResponses = sqliteTable('information_request_resp
   evidenceId: text('evidence_id').notNull().references(() => evidence.id, { onDelete: 'cascade' }),
   note: text('note').notNull(), createdAt: integer('created_at').notNull(),
 }, (table) => [uniqueIndex('idx_request_responses_request').on(table.requestId), index('idx_request_responses_case').on(table.caseId)]);
+
+export const schemaMigrations = sqliteTable('schema_migrations', {
+  version: integer('version').primaryKey(), appliedAt: integer('applied_at').notNull(),
+});
+
+export const idempotencyRecords = sqliteTable('idempotency_records', {
+  id: text('id').primaryKey(), sessionId: text('session_id').notNull(), scope: text('scope').notNull(),
+  idempotencyKey: text('idempotency_key').notNull(), requestHash: text('request_hash').notNull(),
+  status: text('status').notNull().default('pending'), responseJson: text('response_json'),
+  createdAt: integer('created_at').notNull(), expiresAt: integer('expires_at').notNull(),
+}, (table) => [uniqueIndex('idx_idempotency_session_scope_key').on(table.sessionId, table.scope, table.idempotencyKey), index('idx_idempotency_expiry').on(table.expiresAt)]);
+
+export const workflowRuns = sqliteTable('workflow_runs', {
+  id: text('id').primaryKey(), caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('pending'), currentStep: text('current_step').notNull().default('snapshot'),
+  requestId: text('request_id').notNull(), attemptCount: integer('attempt_count').notNull().default(0),
+  createdAt: integer('created_at').notNull(), updatedAt: integer('updated_at').notNull(), completedAt: integer('completed_at'),
+}, (table) => [uniqueIndex('idx_workflow_runs_case').on(table.caseId), index('idx_workflow_runs_status').on(table.status, table.updatedAt)]);
+
+export const workflowSteps = sqliteTable('workflow_steps', {
+  id: text('id').primaryKey(), runId: text('run_id').notNull().references(() => workflowRuns.id, { onDelete: 'cascade' }),
+  stepCode: text('step_code').notNull(), status: text('status').notNull(), attemptCount: integer('attempt_count').notNull().default(0),
+  lastErrorCode: text('last_error_code'), startedAt: integer('started_at'), completedAt: integer('completed_at'),
+}, (table) => [uniqueIndex('idx_workflow_steps_run_code').on(table.runId, table.stepCode)]);
+
+export const outboxJobs = sqliteTable('outbox_jobs', {
+  id: text('id').primaryKey(), caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  runId: text('run_id').notNull().references(() => workflowRuns.id, { onDelete: 'cascade' }), kind: text('kind').notNull(),
+  payloadJson: text('payload_json').notNull(), status: text('status').notNull().default('pending'),
+  attemptCount: integer('attempt_count').notNull().default(0), availableAt: integer('available_at').notNull(),
+  leaseUntil: integer('lease_until'), lastErrorCode: text('last_error_code'), createdAt: integer('created_at').notNull(), completedAt: integer('completed_at'),
+}, (table) => [uniqueIndex('idx_outbox_run_kind').on(table.runId, table.kind), index('idx_outbox_status_available').on(table.status, table.availableAt)]);
+
+export const auditEvents = sqliteTable('audit_events', {
+  id: text('id').primaryKey(), caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  sequence: integer('sequence').notNull(), actor: text('actor').notNull(), action: text('action').notNull(),
+  requestId: text('request_id').notNull(), metadataJson: text('metadata_json').notNull().default('{}'),
+  previousHash: text('previous_hash').notNull(), eventHash: text('event_hash').notNull(), createdAt: integer('created_at').notNull(),
+}, (table) => [uniqueIndex('idx_audit_case_sequence').on(table.caseId, table.sequence), index('idx_audit_case_created').on(table.caseId, table.createdAt)]);
+
+export const evidenceStorage = sqliteTable('evidence_storage', {
+  evidenceId: text('evidence_id').primaryKey().references(() => evidence.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('pending'), attemptCount: integer('attempt_count').notNull().default(0),
+  lastErrorCode: text('last_error_code'), updatedAt: integer('updated_at').notNull(),
+});
+
+export const secureProfiles = sqliteTable('secure_profiles', {
+  caseId: text('case_id').primaryKey().references(() => cases.id, { onDelete: 'cascade' }),
+  ciphertext: text('ciphertext').notNull(), iv: text('iv').notNull(), keyVersion: integer('key_version').notNull().default(1), updatedAt: integer('updated_at').notNull(),
+});
+
+export const secureSubmissionPayloads = sqliteTable('secure_submission_payloads', {
+  submissionId: text('submission_id').primaryKey().references(() => complaintSubmissions.id, { onDelete: 'cascade' }),
+  ciphertext: text('ciphertext').notNull(), iv: text('iv').notNull(), keyVersion: integer('key_version').notNull().default(1), createdAt: integer('created_at').notNull(),
+});
+
+export const rateLimitBuckets = sqliteTable('rate_limit_buckets', {
+  bucketKey: text('bucket_key').notNull(), scope: text('scope').notNull(), windowStart: integer('window_start').notNull(),
+  count: integer('count').notNull().default(0), expiresAt: integer('expires_at').notNull(),
+}, (table) => [uniqueIndex('idx_rate_limit_bucket_scope').on(table.bucketKey, table.scope), index('idx_rate_limit_expiry').on(table.expiresAt)]);

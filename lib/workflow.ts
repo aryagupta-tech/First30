@@ -1,6 +1,16 @@
 import type { CaseStatus } from './contracts';
 
 export type ReadinessLevel = 'incomplete' | 'review_needed' | 'ready';
+export type EngineState = 'draft' | 'evidence_review' | 'ready_to_submit' | 'submitted' | 'action_required' | 'evidence_received';
+
+const engineTransitions: Record<EngineState, EngineState[]> = {
+  draft: ['evidence_review'], evidence_review: ['ready_to_submit'], ready_to_submit: ['submitted'],
+  submitted: ['action_required'], action_required: ['evidence_received'], evidence_received: [],
+};
+
+export function canTransition(from: string, to: EngineState) {
+  return (engineTransitions[from as EngineState] || []).includes(to) || from === to;
+}
 export type ReadinessIssue = {
   code: string;
   severity: 'blocker' | 'warning';

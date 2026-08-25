@@ -1,17 +1,20 @@
 import { createSession, deleteSession, ensureSchema, errorResponse, getSessionId, json, sessionCookie } from '@/lib/server';
 import { demoLoginSchema } from '@/lib/contracts';
+import { csrfToken, enforceRateLimit } from '@/lib/reliability';
+import { env } from 'cloudflare:workers';
 
 export async function GET(request: Request) {
-  try { await ensureSchema(); const active = Boolean(await getSessionId(request)); return json({ active, persona: active ? { id: 'sunita', name: 'Sunita Sharma', mobile: '90000 00000' } : null }); }
+  try { await ensureSchema(); const id = await getSessionId(request); const session = id ? await env.DB.prepare('SELECT expires_at FROM demo_sessions WHERE id = ?').bind(id).first<{ expires_at: number }>() : null; return json({ active: Boolean(id), persona: id ? { id: 'sunita', name: 'Sunita Sharma', mobile: '90000 00000' } : null, csrfToken: id ? await csrfToken(id) : null, expiresAt: session?.expires_at || null }); }
   catch (error) { return errorResponse(error); }
 }
 
 export async function POST(request: Request) {
   try {
+    await ensureSchema(); await enforceRateLimit(request, 'demo_login', 12, 10 * 60 * 1000);
     const body = demoLoginSchema.safeParse(await request.json().catch(() => ({})));
     if (!body.success) return json({ error: 'Use the visible synthetic mobile number and demo OTP.' }, { status: 400 });
     const id = await createSession(body.data.locale);
-    return json({ active: true, persona: { id: 'sunita', name: 'Sunita Sharma', mobile: '90000 00000' } }, { headers: { 'set-cookie': await sessionCookie(id, new URL(request.url).protocol === 'https:') } });
+    return json({ active: true, persona: { id: 'sunita', name: 'Sunita Sharma', mobile: '90000 00000' }, csrfToken: await csrfToken(id), expiresAt: Date.now() + 24 * 60 * 60 * 1000 }, { headers: { 'set-cookie': await sessionCookie(id, new URL(request.url).protocol === 'https:') } });
   } catch (error) { return errorResponse(error); }
 }
 

@@ -7,6 +7,7 @@ import { useLocale } from './LocaleProvider';
 import { DEMO_NARRATIVE, type EvidenceKind, type FactKey, type Observation } from '@/lib/contracts';
 import { analyseEvidenceLocally, analyseManualText, createSampleEvidenceSet, type OcrMethod } from '@/lib/client-ocr';
 import { buildResponsePackage } from '@/lib/client-export';
+import { api } from '@/lib/client-api';
 
 type Row = Record<string, string | number | null>;
 type ObservationRow = Observation & { id?: string; evidenceId: string; evidenceKind: string; filename: string };
@@ -17,11 +18,6 @@ type Pending = { id: string; kind: EvidenceKind; filename: string; text: string;
 
 const FACTS: FactKey[] = ['amount', 'reference', 'recipient', 'institution', 'phone', 'occurred_at'];
 const KIND_COPY: Record<EvidenceKind, [string, string]> = { receipt: ['Payment receipt', 'भुगतान रसीद'], chat: ['Scam conversation', 'ठगी बातचीत'], call_log: ['Call log', 'कॉल लॉग'], bank_statement: ['Bank statement', 'बैंक स्टेटमेंट'] };
-
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init); const data = await response.json() as T & { error?: string };
-  if (!response.ok) throw new Error(data.error || 'Please try again.'); return data;
-}
 
 export function ResponseWorkspace({ caseId: suppliedCaseId }: { caseId?: string }) {
   const { locale, pick } = useLocale(); const started = useRef(false);

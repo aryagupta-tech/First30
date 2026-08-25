@@ -2,6 +2,8 @@ import { env } from 'cloudflare:workers';
 import { evaluateReadiness } from './workflow';
 import { stableJson, sha256Hex } from './response-file';
 import { derivePassport, type ObservationRecord, type ResolutionRecord } from './evidence-passport';
+import { ZodError } from 'zod';
+import { assertMutationSecurity, decryptPrivateJson, problem } from './reliability';
 
 const DAY = 24 * 60 * 60 * 1000;
 const COOKIE = 'f30_session';
@@ -10,7 +12,7 @@ const COOKIE = 'f30_session';
 // FIRST30's current routes never create financial hold or restoration records.
 const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS demo_sessions (id TEXT PRIMARY KEY, persona_id TEXT NOT NULL DEFAULT 'sunita', locale TEXT NOT NULL DEFAULT 'en', ai_calls INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL)`,
-  `CREATE TABLE IF NOT EXISTS cases (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, locale TEXT NOT NULL DEFAULT 'en', status TEXT NOT NULL DEFAULT 'draft', step INTEGER NOT NULL DEFAULT 1, fraud_type TEXT NOT NULL DEFAULT 'fake_kyc', channel TEXT NOT NULL DEFAULT 'upi', amount INTEGER NOT NULL DEFAULT 0, occurred_at TEXT, reference TEXT, bank TEXT, recipient TEXT, narrative_input TEXT, complaint_en TEXT, complaint_hi TEXT, acknowledgement TEXT, held_amount INTEGER NOT NULL DEFAULT 0, restored_amount INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, submitted_at INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS cases (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, locale TEXT NOT NULL DEFAULT 'en', status TEXT NOT NULL DEFAULT 'draft', step INTEGER NOT NULL DEFAULT 1, fraud_type TEXT NOT NULL DEFAULT 'fake_kyc', channel TEXT NOT NULL DEFAULT 'upi', amount INTEGER NOT NULL DEFAULT 0, occurred_at TEXT, reference TEXT, bank TEXT, recipient TEXT, narrative_input TEXT, complaint_en TEXT, complaint_hi TEXT, acknowledgement TEXT, held_amount INTEGER NOT NULL DEFAULT 0, restored_amount INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, submitted_at INTEGER, revision INTEGER NOT NULL DEFAULT 1)`,
   `CREATE TABLE IF NOT EXISTS transactions (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, amount INTEGER NOT NULL, reference TEXT NOT NULL, bank TEXT, recipient TEXT, occurred_at TEXT)`,
   `CREATE TABLE IF NOT EXISTS suspects (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, type TEXT NOT NULL, value TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS evidence (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, kind TEXT NOT NULL, object_key TEXT, filename TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL DEFAULT 0, is_sample INTEGER NOT NULL DEFAULT 0, extracted_json TEXT, created_at INTEGER NOT NULL)`,
@@ -30,6 +32,16 @@ const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS complainant_profiles (case_id TEXT PRIMARY KEY, full_name TEXT NOT NULL, mobile TEXT NOT NULL, gender TEXT NOT NULL, date_of_birth TEXT NOT NULL, relation_name TEXT NOT NULL, address TEXT NOT NULL, state TEXT NOT NULL, district TEXT NOT NULL, police_station TEXT NOT NULL, pincode TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS complaint_submissions (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, acknowledgement TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'action_required', payload_json TEXT NOT NULL, submitted_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS information_request_responses (id TEXT PRIMARY KEY, request_id TEXT NOT NULL, case_id TEXT NOT NULL, evidence_id TEXT NOT NULL, note TEXT NOT NULL, created_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS idempotency_records (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, scope TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_hash TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', response_json TEXT, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS workflow_runs (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', current_step TEXT NOT NULL DEFAULT 'snapshot', request_id TEXT NOT NULL, attempt_count INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, completed_at INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS workflow_steps (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, step_code TEXT NOT NULL, status TEXT NOT NULL, attempt_count INTEGER NOT NULL DEFAULT 0, last_error_code TEXT, started_at INTEGER, completed_at INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS outbox_jobs (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, run_id TEXT NOT NULL, kind TEXT NOT NULL, payload_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempt_count INTEGER NOT NULL DEFAULT 0, available_at INTEGER NOT NULL, lease_until INTEGER, last_error_code TEXT, created_at INTEGER NOT NULL, completed_at INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS audit_events (id TEXT PRIMARY KEY, case_id TEXT NOT NULL, sequence INTEGER NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, request_id TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}', previous_hash TEXT NOT NULL, event_hash TEXT NOT NULL, created_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS evidence_storage (evidence_id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'pending', attempt_count INTEGER NOT NULL DEFAULT 0, last_error_code TEXT, updated_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS secure_profiles (case_id TEXT PRIMARY KEY, ciphertext TEXT NOT NULL, iv TEXT NOT NULL, key_version INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS secure_submission_payloads (submission_id TEXT PRIMARY KEY, ciphertext TEXT NOT NULL, iv TEXT NOT NULL, key_version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS rate_limit_buckets (bucket_key TEXT NOT NULL, scope TEXT NOT NULL, window_start INTEGER NOT NULL, count INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_cases_session_updated ON cases(session_id, updated_at)`,
   `CREATE INDEX IF NOT EXISTS idx_evidence_case ON evidence(case_id)`,
   `CREATE INDEX IF NOT EXISTS idx_events_case_created ON case_events(case_id, created_at)`,
@@ -51,14 +63,31 @@ const schemaStatements = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_complaint_submissions_ack ON complaint_submissions(acknowledgement)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_request_responses_request ON information_request_responses(request_id)`,
   `CREATE INDEX IF NOT EXISTS idx_request_responses_case ON information_request_responses(case_id)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_idempotency_session_scope_key ON idempotency_records(session_id, scope, idempotency_key)`,
+  `CREATE INDEX IF NOT EXISTS idx_idempotency_expiry ON idempotency_records(expires_at)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_runs_case ON workflow_runs(case_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status, updated_at)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_steps_run_code ON workflow_steps(run_id, step_code)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_outbox_run_kind ON outbox_jobs(run_id, kind)`,
+  `CREATE INDEX IF NOT EXISTS idx_outbox_status_available ON outbox_jobs(status, available_at)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_audit_case_sequence ON audit_events(case_id, sequence)`,
+  `CREATE INDEX IF NOT EXISTS idx_audit_case_created ON audit_events(case_id, created_at)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_rate_limit_bucket_scope ON rate_limit_buckets(bucket_key, scope)`,
+  `CREATE INDEX IF NOT EXISTS idx_rate_limit_expiry ON rate_limit_buckets(expires_at)`,
 ];
 
 let schemaReady: Promise<void> | null = null;
 
 export async function ensureSchema() {
   schemaReady ??= (async () => {
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)').run();
+    const applied = await env.DB.prepare('SELECT version FROM schema_migrations WHERE version = 4').first();
+    if (applied) return;
     await env.DB.batch(schemaStatements.map((sql) => env.DB.prepare(sql)));
+    const columns = await env.DB.prepare('PRAGMA table_info(cases)').all<{ name: string }>();
+    if (!(columns.results || []).some((column) => column.name === 'revision')) await env.DB.prepare('ALTER TABLE cases ADD COLUMN revision INTEGER NOT NULL DEFAULT 1').run();
     await env.DB.prepare('PRAGMA optimize').run();
+    await env.DB.prepare('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (4, ?)').bind(Date.now()).run();
   })();
   try { await schemaReady; } catch (error) { schemaReady = null; throw error; }
 }
@@ -107,7 +136,8 @@ export async function getSessionId(request: Request) {
 
 export async function requireSession(request: Request) {
   const id = await getSessionId(request);
-  if (!id) throw new Response(JSON.stringify({ error: 'Session required' }), { status: 401, headers: { 'content-type': 'application/json' } });
+  if (!id) throw problem('SESSION_REQUIRED', 'Your private demo session has ended. Start again to continue.', 401, false);
+  await assertMutationSecurity(request, id);
   return id;
 }
 
@@ -119,14 +149,19 @@ export async function createSession(locale = 'en') {
   return id;
 }
 
-const childTables = ['evidence_analysis', 'evidence_observations', 'evidence_integrity', 'fact_resolutions', 'passport_findings', 'custody_events', 'incident_events', 'milestones', 'case_exports', 'information_request_responses', 'complaint_submissions', 'complainant_profiles', 'case_intake', 'evidence', 'case_events', 'information_requests', 'restorations', 'transactions', 'suspects'];
+const childTables = ['evidence_storage', 'evidence_analysis', 'evidence_observations', 'evidence_integrity', 'fact_resolutions', 'passport_findings', 'custody_events', 'incident_events', 'milestones', 'case_exports', 'information_request_responses', 'outbox_jobs', 'workflow_runs', 'audit_events', 'complaint_submissions', 'secure_profiles', 'complainant_profiles', 'case_intake', 'evidence', 'case_events', 'information_requests', 'restorations', 'transactions', 'suspects'];
+const evidenceChildTables = new Set(['evidence_storage', 'evidence_integrity', 'evidence_analysis']);
 
 export async function purgeExpired() {
   const now = Date.now();
-  const expired = await env.DB.prepare('SELECT e.object_key FROM evidence e JOIN cases c ON c.id = e.case_id JOIN demo_sessions s ON s.id = c.session_id WHERE s.expires_at <= ? AND e.object_key IS NOT NULL LIMIT 30').bind(now).all<{ object_key: string }>();
+  const expired = await env.DB.prepare('SELECT e.object_key FROM evidence e JOIN cases c ON c.id = e.case_id JOIN demo_sessions s ON s.id = c.session_id WHERE s.expires_at <= ? AND e.object_key IS NOT NULL').bind(now).all<{ object_key: string }>();
   await Promise.all((expired.results || []).map((row) => env.FILES.delete(row.object_key)));
-  for (const table of childTables) await env.DB.prepare(`DELETE FROM ${table} WHERE ${['evidence_integrity', 'evidence_analysis'].includes(table) ? 'evidence_id IN (SELECT e.id FROM evidence e JOIN cases c ON c.id = e.case_id JOIN demo_sessions s ON s.id = c.session_id WHERE s.expires_at <= ?)' : 'case_id IN (SELECT c.id FROM cases c JOIN demo_sessions s ON s.id = c.session_id WHERE s.expires_at <= ?)'}`).bind(now).run();
+  await env.DB.prepare('DELETE FROM workflow_steps WHERE run_id IN (SELECT w.id FROM workflow_runs w JOIN cases c ON c.id = w.case_id JOIN demo_sessions s ON s.id = c.session_id WHERE s.expires_at <= ?)').bind(now).run();
+  await env.DB.prepare('DELETE FROM secure_submission_payloads WHERE submission_id IN (SELECT cs.id FROM complaint_submissions cs JOIN cases c ON c.id = cs.case_id JOIN demo_sessions s ON s.id = c.session_id WHERE s.expires_at <= ?)').bind(now).run();
+  for (const table of childTables) await env.DB.prepare(`DELETE FROM ${table} WHERE ${evidenceChildTables.has(table) ? 'evidence_id IN (SELECT e.id FROM evidence e JOIN cases c ON c.id = e.case_id JOIN demo_sessions s ON s.id = c.session_id WHERE s.expires_at <= ?)' : 'case_id IN (SELECT c.id FROM cases c JOIN demo_sessions s ON s.id = c.session_id WHERE s.expires_at <= ?)'}`).bind(now).run();
   await env.DB.prepare('DELETE FROM cases WHERE session_id IN (SELECT id FROM demo_sessions WHERE expires_at <= ?)').bind(now).run();
+  await env.DB.prepare('DELETE FROM idempotency_records WHERE expires_at <= ?').bind(now).run();
+  await env.DB.prepare('DELETE FROM rate_limit_buckets WHERE expires_at <= ?').bind(now).run();
   await env.DB.prepare('DELETE FROM demo_sessions WHERE expires_at <= ?').bind(now).run();
 }
 
@@ -134,20 +169,26 @@ export async function deleteSession(sessionId: string) {
   const objects = await env.DB.prepare('SELECT e.object_key FROM evidence e JOIN cases c ON c.id = e.case_id WHERE c.session_id = ? AND e.object_key IS NOT NULL').bind(sessionId).all<{ object_key: string }>();
   await Promise.all((objects.results || []).map((row) => env.FILES.delete(row.object_key)));
   const caseIds = 'SELECT id FROM cases WHERE session_id = ?';
-  const statements = childTables.map((table) => env.DB.prepare(`DELETE FROM ${table} WHERE ${['evidence_integrity', 'evidence_analysis'].includes(table) ? `evidence_id IN (SELECT id FROM evidence WHERE case_id IN (${caseIds}))` : `case_id IN (${caseIds})`}`).bind(sessionId));
-  await env.DB.batch([...statements, env.DB.prepare('DELETE FROM cases WHERE session_id = ?').bind(sessionId), env.DB.prepare('DELETE FROM demo_sessions WHERE id = ?').bind(sessionId)]);
+  const statements = childTables.map((table) => env.DB.prepare(`DELETE FROM ${table} WHERE ${evidenceChildTables.has(table) ? `evidence_id IN (SELECT id FROM evidence WHERE case_id IN (${caseIds}))` : `case_id IN (${caseIds})`}`).bind(sessionId));
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM workflow_steps WHERE run_id IN (SELECT id FROM workflow_runs WHERE case_id IN (${caseIds}))`).bind(sessionId),
+    env.DB.prepare(`DELETE FROM secure_submission_payloads WHERE submission_id IN (SELECT id FROM complaint_submissions WHERE case_id IN (${caseIds}))`).bind(sessionId),
+    ...statements,
+    env.DB.prepare('DELETE FROM idempotency_records WHERE session_id = ?').bind(sessionId),
+    env.DB.prepare('DELETE FROM cases WHERE session_id = ?').bind(sessionId), env.DB.prepare('DELETE FROM demo_sessions WHERE id = ?').bind(sessionId),
+  ]);
 }
 
 export async function ownedCase(sessionId: string, caseId: string) {
   const row = await env.DB.prepare('SELECT * FROM cases WHERE id = ? AND session_id = ?').bind(caseId, sessionId).first<Record<string, unknown>>();
-  if (!row) throw new Response(JSON.stringify({ error: 'Case not found' }), { status: 404, headers: { 'content-type': 'application/json' } });
+  if (!row) throw problem('CASE_NOT_FOUND', 'This report was not found in your private session.', 404, false);
   return row;
 }
 
 export async function ownedEvidence(sessionId: string, caseId: string, evidenceId: string) {
   await ownedCase(sessionId, caseId);
   const row = await env.DB.prepare('SELECT e.*, i.sha256, i.ocr_text, i.extraction_json, i.confirmed_at, a.client_sha256, a.ocr_method, a.analysis_status, a.analysed_at FROM evidence e LEFT JOIN evidence_integrity i ON i.evidence_id = e.id LEFT JOIN evidence_analysis a ON a.evidence_id = e.id WHERE e.id = ? AND e.case_id = ?').bind(evidenceId, caseId).first<Record<string, unknown>>();
-  if (!row) throw new Response(JSON.stringify({ error: 'Evidence not found' }), { status: 404, headers: { 'content-type': 'application/json' } });
+  if (!row) throw problem('EVIDENCE_NOT_FOUND', 'This evidence file was not found in your private report.', 404, false);
   return row;
 }
 
@@ -189,7 +230,7 @@ export async function recordCustody(caseId: string, evidenceId: string | null, a
 
 export async function caseBundle(sessionId: string, caseId: string) {
   const caseRow = await ownedCase(sessionId, caseId);
-  const [evidenceRows, chronology, milestones, exports, passportDataResult, findings, custody, intake, profile, submission, requests, requestResponses, events] = await Promise.all([
+  const [evidenceRows, chronology, milestones, exports, passportDataResult, findings, custody, intake, legacyProfile, submission, requests, requestResponses, events, secureProfile] = await Promise.all([
     env.DB.prepare('SELECT e.*, i.sha256, i.ocr_text, i.extraction_json, i.confirmed_at, a.client_sha256, a.ocr_method, a.analysis_status, a.analysed_at FROM evidence e LEFT JOIN evidence_integrity i ON i.evidence_id = e.id LEFT JOIN evidence_analysis a ON a.evidence_id = e.id WHERE e.case_id = ? ORDER BY e.created_at, e.id').bind(caseId).all<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM incident_events WHERE case_id = ? ORDER BY position, occurred_at, id').bind(caseId).all<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM milestones WHERE case_id = ? ORDER BY occurred_at DESC, created_at DESC, id').bind(caseId).all<Record<string, unknown>>(),
@@ -203,12 +244,14 @@ export async function caseBundle(sessionId: string, caseId: string) {
     env.DB.prepare('SELECT * FROM information_requests WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM information_request_responses WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
     env.DB.prepare('SELECT * FROM case_events WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
+    env.DB.prepare('SELECT ciphertext, iv FROM secure_profiles WHERE case_id = ?').bind(caseId).first<{ ciphertext: string; iv: string }>(),
   ]);
+  const profile = secureProfile ? await decryptPrivateJson<Record<string, unknown>>(secureProfile.ciphertext, secureProfile.iv) : legacyProfile;
   const contradictions = passportDataResult.passport.checks.filter((item) => item.status === 'conflict').map((item) => item.detailEn);
   const readiness = evaluateReadiness({
     amount: Number(caseRow.amount || 0), occurredAt: String(caseRow.occurred_at || ''), reference: String(caseRow.reference || ''), bank: String(caseRow.bank || ''), recipient: String(caseRow.recipient || ''), narrative: String(caseRow.narrative_input || ''), evidence: evidenceRows.results || [], contradictions,
   });
-  return { case: caseRow, evidence: evidenceRows.results, chronology: chronology.results, milestones: milestones.results, exports: exports.results, readiness, observations: passportDataResult.observations, resolutions: passportDataResult.resolutions, passport: passportDataResult.passport, findings: findings.results, custody: custody.results, intake, profile, submission, requests: requests.results, requestResponses: requestResponses.results, events: events.results };
+  return { case: caseRow, evidence: evidenceRows.results, chronology: chronology.results, milestones: milestones.results, exports: exports.results, readiness, observations: passportDataResult.observations, resolutions: passportDataResult.resolutions, passport: passportDataResult.passport, findings: findings.results, custody: custody.results, intake, profile, submission, requests: requests.results, requestResponses: requestResponses.results, events: events.results, meta: { caseRevision: Number(caseRow.revision || 1), savedAt: Number(caseRow.updated_at || Date.now()) } };
 }
 
 export async function caseFingerprint(sessionId: string, caseId: string) {
@@ -233,10 +276,15 @@ export async function addEvent(caseId: string, type: string, titleEn: string, ti
     .bind(crypto.randomUUID(), caseId, type, titleEn, titleHi, detailEn, detailHi, createdAt).run();
 }
 
-export function json(data: unknown, init: ResponseInit = {}) { return Response.json(data, init); }
+export function json(data: unknown, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set('cache-control', 'no-store'); headers.set('x-content-type-options', 'nosniff'); headers.set('referrer-policy', 'no-referrer');
+  return Response.json(data, { ...init, headers });
+}
 
 export function errorResponse(error: unknown) {
   if (error instanceof Response) return error;
+  if (error instanceof ZodError) return json({ error: 'Check the highlighted information and try again.', code: 'VALIDATION_FAILED', requestId: crypto.randomUUID(), retryable: false, fieldErrors: Object.fromEntries(error.issues.map((issue) => [issue.path.join('.') || 'form', issue.message])) }, { status: 400 });
   console.error(error);
-  return json({ error: 'Something went wrong. Please try again.' }, { status: 500 });
+  return json({ error: 'Something went wrong. Please try again.', code: 'INTERNAL_ERROR', requestId: crypto.randomUUID(), retryable: true }, { status: 500 });
 }
