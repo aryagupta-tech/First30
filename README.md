@@ -4,7 +4,29 @@
 
 FIRST30 is an independent, end-to-end redesign of the citizen journey for reporting financial cyber fraud. It combines a senior-friendly five-step interface with a production-style reporting engine: resumable saves, safe retries, immutable submission snapshots, evidence integrity checks and a transparent processing receipt.
 
+**Live demo:** [first30-cyber-fraud-reporting.aryagupta.chatgpt.site](https://first30-cyber-fraud-reporting.aryagupta.chatgpt.site)
+
+## What FIRST30 improves
+
+| Common reporting problem | FIRST30 response |
+| --- | --- |
+| Long, technical forms | Five plain-language Easy Mode stages with English/Hindi read-aloud guidance |
+| Lost progress or duplicate clicks | Resumable saves, optimistic revisions and idempotent commands |
+| Unclear or contradictory evidence | Local OCR, source-linked facts and visible conflict detection |
+| Uncertain backend processing | A citizen-safe receipt showing checks, steps, retries and audit-chain integrity |
+| Repeated evidence sharing | One signed Evidence Passport containing originals, provenance and checksums |
+
 > FIRST30 is a synthetic hackathon prototype. It does not contact NCRP, police, a bank or any government system, and it does not freeze or recover money. For a real financial cyber-fraud incident in India, call **1930**, contact the bank through a trusted number and never share an OTP.
+
+## What is real and what is mocked
+
+| Works end to end | Clearly mocked |
+| --- | --- |
+| Session ownership, autosave and reload/resume | NCRP submission and acknowledgement |
+| Browser-local OCR and deterministic evidence analysis | Additional evidence request from an institution |
+| D1 case records and private R2 evidence storage | Any police, bank or government response |
+| Encrypted snapshots, outbox processing and audit chain | Investigation, freezing or recovery of funds |
+| Signed ZIP/PDF export and tamper verification | Acceptance by an official authority |
 
 ## Complete demo journey
 
@@ -34,6 +56,21 @@ The public demo never contacts NCRP, police, a bank or another private system. I
 - CSRF, same-origin checks, signed cookies, hashed rate-limit identifiers, strict image-signature checks and private no-store evidence responses protect the boundary.
 
 Every successful case response includes a revision and saved time. Mutations carry a CSRF token, an idempotency key and the last known revision. A stale edit receives `409`, while an exact retry reuses its first result.
+
+```text
+Citizen command
+      │
+      ▼
+Workflow service ──► encrypted immutable snapshot
+      │
+      ├────────────► hash-linked audit event
+      │
+      ▼
+Transactional outbox ──► typed MockNcrpGateway
+      │
+      ▼
+Sanitized processing receipt shown to the citizen
+```
 
 ## Easy Mode and accessibility
 
