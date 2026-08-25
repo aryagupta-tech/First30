@@ -129,3 +129,7 @@ Application and D1 readiness is available at `/api/health`.
 ## License
 
 FIRST30 is available under the [MIT License](LICENSE).
+
+## Security
+
+Please read the [security policy](SECURITY.md) before testing or deploying FIRST30. Report vulnerabilities privately and use synthetic data only.
