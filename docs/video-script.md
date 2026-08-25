@@ -1,21 +1,21 @@
-# FIRST30 two-minute submission video
+# FIRST30 Evidence Passport — video script
 
-## 0:00–1:00 — Build a real response file
+“An AI can write a complaint. But after fraud, the harder question is: which evidence supports every claim, what conflicts, and has the shared file changed?”
 
-“A fraud victim usually has scattered screenshots and must repeat the same story everywhere. FIRST30 turns that evidence into one reusable, verifiable response file.”
+“FIRST30 answers that with an Evidence Passport.”
 
-Open the single response workspace. Use Sunita’s synthetic UPI receipt and show the locally read amount, UTR, institution, recipient and time. Change one field to demonstrate that every fact is citizen-controlled.
+Load the three-file synthetic case. Show the receipt, scam conversation and call log appearing in the evidence rail.
 
-Show the checksum, duplicate protection, readiness checks and editable incident chronology. Mark an unavailable field as Unknown and explain that FIRST30 preserves uncertainty instead of inventing a detail.
+“The analysis runs locally. FIRST30 links the amount, recipient, caller and timestamps back to their original files.”
 
-Build the response file. Open the downloaded ZIP and show the original evidence, bilingual PDF, `case.json` and signed `manifest.json`.
+Show the source chips and sufficiency matrix.
 
-## 1:00–2:00 — Verify and explain the boundary
+“Here, the receipt records ₹18,499 while the scam message says ₹18,400. FIRST30 does not hide or ‘correct’ the discrepancy. It exports the red flag, with any citizen explanation attached.”
 
-Upload `manifest.json` on the verification page and show the valid version, creation time and signed file count. Modify a manifest value and show that verification reports it as altered.
+Build and download the Evidence Passport. Briefly show the PDF, `passport.json`, `manifest.json` and originals.
 
-“This is the product’s real outcome: evidence integrity, completeness, chronology and reusable documents. FIRST30 does not pretend that it contacted a bank or recovered money.”
+Upload the whole ZIP on the verification page.
 
-Show the citizen follow-up area, where a real bank, 1930 or cybercrime acknowledgement appears only after the citizen records it.
+“Every file is re-hashed inside the browser. Only the verification code, manifest hash and signature reach FIRST30.”
 
-“FIRST30 helps a citizen explain the fraud once and use the same verified file everywhere. A production deployment could be white-labelled by banks, insurers or fintechs, while the citizen experience remains simple and independent.”
+“FIRST30 does not claim that a bank accepted the case or that money was recovered. It gives citizens and recipients something more defensible than AI prose: a source-linked, tamper-evident evidence file.”

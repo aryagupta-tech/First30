@@ -4,7 +4,7 @@ import { zipSync, strToU8 } from 'fflate';
 import { callScript, channelDisputeCopy, sha256Hex, stableJson } from './response-file';
 
 type Row = Record<string, string | number | null>;
-type Bundle = { case: Row; evidence: Row[]; chronology: Row[]; milestones: Row[]; readiness: { level: string; issues: Array<{ messageEn: string }> } };
+type Bundle = { case: Row; evidence: Row[]; chronology: Row[]; observations: Array<Record<string, unknown>>; resolutions: Array<Record<string, unknown>>; findings: Row[]; custody: Row[]; passport: { coverage: { present: number; total: number }; counts: { passed: number; conflicts: number; missing: number; unknownFacts: number }; checks: Array<{ status: string; titleEn: string; detailEn: string }>; facts: Array<{ field: string; resolution: { value?: string; resolutionType?: string } | null; observations: Array<{ filename?: string; value?: string }> }> } };
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
   const words = text.replace(/\n/g, ' \n ').split(/\s+/); const lines: string[] = []; let line = '';
@@ -21,24 +21,29 @@ async function renderPdfPages(bundle: Bundle) {
   const workspaceStarted = new Date(Number(row.created_at || 0)).toLocaleString('en-IN');
   const sections = [
     {
-      title: 'FIRST30 Response File', subtitle: 'Verified evidence package · स्वतंत्र प्रमाण पैकेज',
+      title: 'FIRST30 Evidence Passport', subtitle: 'Source-linked evidence file · स्रोत-संबद्ध प्रमाण फ़ाइल',
       blocks: [
-        `Workspace started ${workspaceStarted}\nIndependent preparation tool — not submitted to a bank, police or government system.`,
-        `CONFIRMED TRANSACTION\nAmount: ₹${Number(row.amount || 0).toLocaleString('en-IN')}\nChannel: ${String(row.channel || 'Unknown').toUpperCase()}\nReference: ${String(row.reference || 'Unknown')}\nInstitution: ${String(row.bank || 'Unknown')}\nRecipient: ${String(row.recipient || 'Unknown')}\nTime: ${String(row.occurred_at || 'Unknown')}`,
-        `INCIDENT CHRONOLOGY\n${bundle.chronology.map((event) => `${event.occurred_at} — ${event.description_en}`).join('\n') || 'No chronology events recorded.'}`,
+        `Workspace started ${workspaceStarted}\nIndependent preparation tool — not submitted to a bank, police or government system. Verification proves integrity and internal consistency, not truth, acceptance or recovery.`,
+        `EVIDENCE SUFFICIENCY\nEvidence types: ${bundle.passport.coverage.present}/${bundle.passport.coverage.total}\nChecks passed: ${bundle.passport.counts.passed}\nConflicts: ${bundle.passport.counts.conflicts}\nMissing checks: ${bundle.passport.counts.missing}\nUnknown facts: ${bundle.passport.counts.unknownFacts}`,
+        `SOURCE-LINKED FACTS\n${bundle.passport.facts.map((fact) => `${fact.field}: ${fact.resolution?.value || 'Unknown'} · ${fact.resolution?.resolutionType || 'unresolved'} · sources ${fact.observations.map((item) => item.filename).filter(Boolean).join(', ') || 'none'}`).join('\n')}`,
       ],
     },
     {
-      title: 'Citizen complaint · नागरिक शिकायत', subtitle: 'Generated only from confirmed facts',
-      blocks: [`ENGLISH\n${String(row.complaint_en || '')}`, `हिंदी\n${String(row.complaint_hi || '')}`],
+      title: 'Provenance and findings', subtitle: 'Every check remains visible in the exported passport',
+      blocks: [
+        `CONSISTENCY CHECKS\n${bundle.passport.checks.map((check) => `${check.status.toUpperCase()} — ${check.titleEn}: ${check.detailEn}`).join('\n')}`,
+        `EVIDENCE CHRONOLOGY\n${bundle.observations.filter((item) => item.field === 'occurred_at').sort((a,b) => String(a.value).localeCompare(String(b.value))).map((item) => `${item.value} — ${item.evidenceKind} · ${item.filename} · ${item.sourceText}`).join('\n') || 'No evidence timestamps were found.'}`,
+        `CITIZEN EXPLANATIONS\n${bundle.findings.filter((item) => item.status === 'conflict').map((item) => `${item.rule_code}: ${item.acknowledgement_note || 'No explanation attached.'}`).join('\n') || 'No conflicts recorded.'}`,
+      ],
     },
     {
-      title: 'Response actions', subtitle: 'Documents to use in the citizen’s own follow-up',
+      title: 'Citizen document appendices', subtitle: 'Generated only from confirmed or explicitly unknown facts',
       blocks: [
+        `ENGLISH COMPLAINT\n${String(row.complaint_en || '')}`,
+        `हिंदी शिकायत\n${String(row.complaint_hi || '')}`,
         `BANK DISPUTE LETTER\n${channelDisputeCopy(String(row.channel || ''), String(row.bank || ''))}`,
         `1930 CALL SCRIPT\n${callScript({ amount: row.amount, channel: row.channel, reference: row.reference, occurredAt: row.occurred_at })}`,
         `EVIDENCE INDEX\n${bundle.evidence.map((item, index) => `${index + 1}. ${item.filename} · ${item.mime_type} · SHA-256 ${item.sha256}`).join('\n')}`,
-        `UNKNOWN OR MISSING INFORMATION\n${bundle.readiness.issues.map((issue) => `• ${issue.messageEn}`).join('\n') || 'No unresolved checks.'}`,
       ],
     },
   ];
@@ -118,8 +123,8 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
     const path = `evidence/${String(index + 1).padStart(2, '0')}-${String(evidence.filename).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     files[path] = bytes; manifestFiles.push({ path, mimeType: evidence.mime_type, size: bytes.length, sha256: digest, evidenceId: evidence.id });
   }
-  const pdf = await jpegPagesToPdf(await renderPdfPages(bundle)); files['FIRST30-response-file.pdf'] = pdf;
-  manifestFiles.push({ path: 'FIRST30-response-file.pdf', mimeType: 'application/pdf', size: pdf.length, sha256: await sha256Hex(pdf) });
+  const pdf = await jpegPagesToPdf(await renderPdfPages(bundle)); files['FIRST30-evidence-passport.pdf'] = pdf;
+  manifestFiles.push({ path: 'FIRST30-evidence-passport.pdf', mimeType: 'application/pdf', size: pdf.length, sha256: await sha256Hex(pdf) });
   const normalizedCase = {
     id: bundle.case.id,
     fraudType: bundle.case.fraud_type,
@@ -142,27 +147,35 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
     source: item.source,
     position: item.position,
   }));
-  const caseRecord = strToU8(JSON.stringify({
-    format: 'FIRST30-case',
-    version: 1,
+  const passportRecord = strToU8(JSON.stringify({
+    format: 'FIRST30-evidence-passport',
+    version: 2,
     case: normalizedCase,
     chronology: normalizedChronology,
+    passport: bundle.passport,
+    observations: bundle.observations,
+    resolutions: bundle.resolutions,
+    findings: bundle.findings.map((item) => ({ ruleCode: item.rule_code, status: item.status, detailEn: item.detail_en, detailHi: item.detail_hi, evidenceIds: JSON.parse(String(item.evidence_ids_json || '[]')), acknowledgementNote: item.acknowledgement_note, acknowledgedAt: item.acknowledged_at })),
+    custody: bundle.custody.filter((item) => ['added', 'analysed', 'removed'].includes(String(item.action))).map((item) => ({ evidenceId: item.evidence_id, action: item.action, detail: item.detail, createdAt: item.created_at })),
     evidence: bundle.evidence.map((item) => ({ id: item.id, kind: item.kind, filename: item.filename, mimeType: item.mime_type, size: item.size, isSample: item.is_sample, sha256: item.sha256, confirmedAt: item.confirmed_at, createdAt: item.created_at })),
   }, null, 2));
-  files['case.json'] = caseRecord; manifestFiles.push({ path: 'case.json', mimeType: 'application/json', size: caseRecord.length, sha256: await sha256Hex(caseRecord) });
+  files['passport.json'] = passportRecord; manifestFiles.push({ path: 'passport.json', mimeType: 'application/json', size: passportRecord.length, sha256: await sha256Hex(passportRecord) });
   const caseFingerprint = await sha256Hex(stableJson({
     case: { id: bundle.case.id, fraudType: bundle.case.fraud_type, channel: bundle.case.channel, amount: bundle.case.amount, occurredAt: bundle.case.occurred_at, reference: bundle.case.reference, bank: bundle.case.bank, recipient: bundle.case.recipient, narrative: bundle.case.narrative_input, complaintEn: bundle.case.complaint_en, complaintHi: bundle.case.complaint_hi },
     evidence: bundle.evidence.map((item) => ({ id: item.id, filename: item.filename, mimeType: item.mime_type, size: item.size, sha256: item.sha256, confirmedAt: item.confirmed_at })),
     chronology: bundle.chronology.map((item) => ({ occurredAt: item.occurred_at, eventType: item.event_type, descriptionEn: item.description_en, descriptionHi: item.description_hi, source: item.source, position: item.position })),
+    observations: bundle.observations,
+    resolutions: bundle.resolutions,
+    findings: bundle.findings.map((item) => ({ ruleCode: item.rule_code, status: item.status, detailEn: item.detail_en, acknowledgementNote: item.acknowledgement_note, acknowledgedAt: item.acknowledged_at })),
   }));
-  const core = { format: 'FIRST30-response-file' as const, formatVersion: 1 as const, caseId, createdAt: Date.now(), caseFingerprint, files: manifestFiles };
+  const core = { format: 'FIRST30-evidence-passport' as const, formatVersion: 2 as const, caseId, createdAt: Date.now(), caseFingerprint, files: manifestFiles };
   const response = await fetch(`/api/cases/${caseId}/exports`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(core) });
   const result = await response.json() as { manifest?: Record<string, unknown>; error?: string };
-  if (!response.ok || !result.manifest) throw new Error(result.error || 'Could not sign the response file.');
+  if (!response.ok || !result.manifest) throw new Error(result.error || 'Could not sign the Evidence Passport.');
   files['manifest.json'] = strToU8(JSON.stringify(result.manifest, null, 2));
   const zip = zipSync(files, { level: 6 });
   const ownedZip = new Uint8Array(zip.byteLength); ownedZip.set(zip);
   const blob = new Blob([ownedZip.buffer], { type: 'application/zip' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
-  anchor.href = url; anchor.download = `FIRST30-${String(result.manifest.verificationCode)}.zip`; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 2_000);
+  anchor.href = url; anchor.download = `FIRST30-Evidence-Passport-${String(result.manifest.verificationCode)}.zip`; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 2_000);
   return result.manifest;
 }

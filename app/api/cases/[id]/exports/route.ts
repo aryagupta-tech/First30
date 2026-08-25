@@ -10,10 +10,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const core = manifestCoreSchema.parse(await request.json());
     if (core.caseId !== id) return json({ error: 'Manifest case does not match.' }, { status: 400 });
     const bundle = await caseBundle(sessionId, id);
-    if (!isExportable(bundle.readiness.level)) return json({ error: 'Resolve the required response-file checks before exporting.', readiness: bundle.readiness }, { status: 409 });
+    if (core.format === 'FIRST30-evidence-passport') {
+      if (!bundle.evidence.length || bundle.evidence.some((item) => !item.confirmed_at)) return json({ error: 'Confirm at least one evidence item before exporting the passport.' }, { status: 409 });
+    } else if (!isExportable(bundle.readiness.level)) return json({ error: 'Resolve the required response-file checks before exporting.', readiness: bundle.readiness }, { status: 409 });
     const fingerprint = await caseFingerprint(sessionId, id);
     if (core.caseFingerprint !== fingerprint) return json({ error: 'The case changed while the package was being built. Refresh and try again.' }, { status: 409 });
-    if (!core.files.some((file) => file.path === 'FIRST30-response-file.pdf') || !core.files.some((file) => file.path === 'case.json')) return json({ error: 'The response PDF and case JSON are required.' }, { status: 400 });
+    const requiredPdf = core.format === 'FIRST30-evidence-passport' ? 'FIRST30-evidence-passport.pdf' : 'FIRST30-response-file.pdf';
+    const requiredJson = core.format === 'FIRST30-evidence-passport' ? 'passport.json' : 'case.json';
+    if (!core.files.some((file) => file.path === requiredPdf) || !core.files.some((file) => file.path === requiredJson)) return json({ error: 'The Evidence Passport PDF and structured JSON are required.' }, { status: 400 });
     if (new Set(core.files.map((file) => file.path)).size !== core.files.length) return json({ error: 'Every package file path must be unique.' }, { status: 400 });
     const evidenceFiles = core.files.filter((file) => file.evidenceId);
     if (evidenceFiles.length !== bundle.evidence.length) return json({ error: 'Every confirmed evidence item must be included.' }, { status: 400 });
@@ -25,7 +29,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (existing) {
       const manifest = JSON.parse(existing.manifest_json) as { files?: unknown };
       if (stableJson(manifest.files) !== stableJson(core.files)) {
-        return json({ error: 'This unchanged case produced different package bytes. Refresh the page and rebuild the response file.' }, { status: 409 });
+        return json({ error: 'This unchanged case produced different package bytes. Refresh the page and rebuild the Evidence Passport.' }, { status: 409 });
       }
       return json({ manifest, idempotent: true });
     }
@@ -42,6 +46,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         .bind(crypto.randomUUID(), id, version, verificationCode, fingerprint, manifestHash, signature, JSON.stringify(manifest), core.files.length, now),
       env.DB.prepare("UPDATE cases SET status = 'exported', acknowledgement = ?, submitted_at = COALESCE(submitted_at, ?), updated_at = ? WHERE id = ? AND session_id = ?")
         .bind(verificationCode, now, now, id, sessionId),
+      env.DB.prepare('INSERT INTO custody_events (id, case_id, evidence_id, action, detail, created_at) VALUES (?, ?, NULL, ?, ?, ?)').bind(crypto.randomUUID(), id, 'exported', `Evidence Passport version ${version} signed as ${verificationCode}`, now),
     ]);
     return json({ manifest, idempotent: false }, { status: 201 });
   } catch (error) { return errorResponse(error); }

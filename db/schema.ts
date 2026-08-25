@@ -65,6 +65,40 @@ export const evidenceIntegrity = sqliteTable('evidence_integrity', {
   confirmedAt: integer('confirmed_at'),
 }, (table) => [uniqueIndex('idx_evidence_integrity_sha').on(table.sha256, table.evidenceId)]);
 
+export const evidenceAnalysis = sqliteTable('evidence_analysis', {
+  evidenceId: text('evidence_id').primaryKey().references(() => evidence.id, { onDelete: 'cascade' }),
+  clientSha256: text('client_sha256').notNull(),
+  ocrMethod: text('ocr_method').notNull(),
+  analysisStatus: text('analysis_status').notNull().default('pending'),
+  analysedAt: integer('analysed_at'),
+});
+
+export const evidenceObservations = sqliteTable('evidence_observations', {
+  id: text('id').primaryKey(),
+  caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  evidenceId: text('evidence_id').notNull().references(() => evidence.id, { onDelete: 'cascade' }),
+  field: text('field').notNull(), value: text('value').notNull(), normalizedValue: text('normalized_value').notNull(),
+  sourceText: text('source_text').notNull(), confidence: integer('confidence').notNull(), createdAt: integer('created_at').notNull(),
+}, (table) => [index('idx_evidence_observations_case_field').on(table.caseId, table.field), index('idx_evidence_observations_evidence').on(table.evidenceId)]);
+
+export const factResolutions = sqliteTable('fact_resolutions', {
+  id: text('id').primaryKey(), caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  field: text('field').notNull(), value: text('value').notNull(), normalizedValue: text('normalized_value').notNull(),
+  resolutionType: text('resolution_type').notNull(), sourceEvidenceId: text('source_evidence_id'), confirmedAt: integer('confirmed_at').notNull(),
+}, (table) => [uniqueIndex('idx_fact_resolutions_case_field').on(table.caseId, table.field)]);
+
+export const passportFindings = sqliteTable('passport_findings', {
+  id: text('id').primaryKey(), caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  ruleCode: text('rule_code').notNull(), status: text('status').notNull(), titleEn: text('title_en').notNull(), titleHi: text('title_hi').notNull(),
+  detailEn: text('detail_en').notNull(), detailHi: text('detail_hi').notNull(), evidenceIdsJson: text('evidence_ids_json').notNull().default('[]'),
+  acknowledgementNote: text('acknowledgement_note'), acknowledgedAt: integer('acknowledged_at'), createdAt: integer('created_at').notNull(),
+}, (table) => [uniqueIndex('idx_passport_findings_case_rule').on(table.caseId, table.ruleCode)]);
+
+export const custodyEvents = sqliteTable('custody_events', {
+  id: text('id').primaryKey(), caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  evidenceId: text('evidence_id'), action: text('action').notNull(), detail: text('detail').notNull(), createdAt: integer('created_at').notNull(),
+}, (table) => [index('idx_custody_events_case_created').on(table.caseId, table.createdAt)]);
+
 export const incidentEvents = sqliteTable('incident_events', {
   id: text('id').primaryKey(),
   caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),

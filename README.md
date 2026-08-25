@@ -1,63 +1,60 @@
-# FIRST30
+# FIRST30 Evidence Passport
 
-![FIRST30 — The first 30 minutes matter](public/og.png)
+![FIRST30](public/og.png)
 
-FIRST30 turns scattered financial-fraud evidence into one complete, verifiable response file. A citizen can organise synthetic evidence, confirm locally read transaction facts, identify missing information, build a chronology and download a bilingual package containing the originals, a PDF, case JSON and a signed checksum manifest.
+FIRST30 shows what financial-fraud evidence actually supports before a citizen reports it. It analyses a synthetic payment receipt, scam conversation and call log locally, links every confirmed fact to its source, exposes contradictions, records custody events and exports a tamper-evident Evidence Passport.
 
-> [!IMPORTANT]
-> FIRST30 is an independent prototype using synthetic people, transactions and evidence. It does not submit reports, contact a bank or government system, freeze funds or recover money. For a real financial cyber-fraud incident in India, call **1930**.
+> FIRST30 is an independent synthetic prototype. It does not submit reports, contact banks or government systems, establish that a claim is true, freeze funds or recover money. For a real financial cyber-fraud incident in India, call **1930**.
 
-## What genuinely works
+## Why this is different from an AI complaint writer
 
-- A single English/Hindi response workspace rather than a click-through simulation
-- Private browser receipt reading when supported, with manual confirmation fallback
-- SHA-256 hashing and duplicate-evidence rejection
-- Missing-field, future-time and evidence/confirmation checks
-- Editable incident chronology
-- Deterministic English/Hindi complaint generation from confirmed facts
-- Channel-specific dispute letter and plain-language 1930 call script
-- Downloadable ZIP with original evidence, bilingual PDF, `case.json` and `manifest.json`
-- Server-signed manifest with privacy-preserving public verification
-- Citizen-recorded bank, 1930, cybercrime and follow-up acknowledgement numbers
-- Anonymous 24-hour sessions with D1 and R2-backed persistence
+AI can draft prose. FIRST30 preserves the evidence trail:
 
-## Demo journey
+- Source-linked observations for amount, reference, recipient, institution, phone and timestamps
+- Deterministic cross-evidence agreement, conflict and missing-information checks
+- Explicit `Evidence supported`, `Manually entered` and `Unknown` resolutions
+- SHA-256 hashing, duplicate rejection and custody records
+- Conflict explanations that never remove the original red flag
+- Whole-ZIP verification without uploading evidence bytes
 
-1. Open the response workspace.
-2. Use the synthetic UPI receipt or choose another synthetic image.
-3. Review locally read facts and correct anything uncertain.
-4. Confirm evidence, fill unavailable fields with `Unknown`, and review readiness checks.
-5. Edit the automatically prepared chronology.
-6. Build and download the signed ZIP/PDF response file.
-7. Upload `manifest.json` on `/verify` to prove the recorded manifest is unchanged.
-8. Optionally record real acknowledgement numbers the citizen receives afterward.
+## Judged demo
 
-## Package contents
+1. Open `/report` and choose **Load synthetic evidence set**.
+2. FIRST30 creates and analyses a receipt, scam-chat screenshot and call-log screenshot through the same local pipeline.
+3. The fact board links observations to sources and exposes the deliberate ₹18,499 versus ₹18,400 mismatch.
+4. Confirm the canonical facts or mark unavailable values `Unknown`.
+5. Build the Evidence Passport.
+6. Upload the downloaded ZIP at `/verify`; every packaged file is unpacked and hashed locally before the recorded signature is checked.
+
+## Evidence Passport ZIP
 
 ```text
-FIRST30-<verification-code>.zip
-├── FIRST30-response-file.pdf
-├── case.json
+FIRST30-Evidence-Passport-<verification-code>.zip
+├── FIRST30-evidence-passport.pdf
+├── passport.json
 ├── manifest.json
 └── evidence/
-    └── original synthetic evidence files
+    ├── receipt.png
+    ├── chat.png
+    └── call-log.png
 ```
 
-The manifest lists every filename, media type, size and SHA-256 checksum. FIRST30 signs the canonical manifest and stores only its verification record. The verification page hashes the manifest in the browser and sends only its verification code, hash and signature; it never sends or returns citizen facts or evidence.
+The PDF contains the sufficiency matrix, fact-to-source mapping, chronology, unresolved conflicts, evidence checksums and English/Hindi citizen-document appendices. Verification proves that the signed package and its listed files are unchanged; it does not prove institutional acceptance or factual truth.
+
+## Local analysis and fallback
+
+- Browser-native text detection is used when available.
+- The built-in judged samples use bundled deterministic text fixtures and parsers when browser text detection is unavailable.
+- Custom synthetic images fall back to a manual source-text review when local text detection is unavailable.
+- No external AI or OCR API is called.
 
 ## Run with Docker and OrbStack
 
-Requirements:
-
-- OrbStack or another Docker-compatible runtime
-- Docker Compose
-
 ```bash
-cp .env.example .env
 docker compose up --build app
 ```
 
-Set `SESSION_SECRET` in `.env` to a random value containing at least 32 characters. Open [http://localhost:3000](http://localhost:3000). Local D1 and R2 state persists in named Docker volumes.
+Open [http://localhost:3000](http://localhost:3000). D1 and R2 state persists in named Docker volumes.
 
 Production-style container:
 
@@ -65,22 +62,14 @@ Production-style container:
 docker compose --profile production up --build app-prod
 ```
 
-## Run directly
-
-```bash
-npm ci
-cp .env.example .env
-npm run dev
-```
-
 ## Environment variables
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `SESSION_SECRET` | Yes | Signs anonymous sessions and response-file manifests |
+| `SESSION_SECRET` | Yes | Signs anonymous sessions and Evidence Passport manifests |
 | `FIRST30_PORT` | No | Changes the Docker Compose host port |
 
-Never commit `.env` files or real evidence. The repository contains only placeholders and synthetic data.
+Never commit `.env` files or real evidence. This hackathon build accepts synthetic evidence only.
 
 ## Validation
 
@@ -90,16 +79,4 @@ npm run lint
 npm run build
 ```
 
-Application and D1 readiness is available at [`/api/health`](http://localhost:3000/api/health).
-
-## Privacy and safety
-
-- Custom images are read locally before upload.
-- Uploads accept PNG, JPEG or WebP images up to 5 MB.
-- Every case, evidence file and export is session-owned.
-- Unknown information remains explicitly unknown; FIRST30 does not invent facts.
-- Editing confirmed data produces a new export version.
-- Verification proves manifest integrity only—not institutional acceptance or recovery.
-- No external bank, government, police, AI or OCR API is called.
-
-FIRST30 is a hackathon prototype, not an official reporting or banking service.
+Application and D1 readiness is available at `/api/health`.

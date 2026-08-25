@@ -74,7 +74,7 @@ export function buildComplaint(fields: Record<string, unknown>) {
 
 export function channelDisputeCopy(channel: string, bank: string) {
   const channelLabel: Record<string, string> = { upi: 'UPI transaction', card: 'card transaction', bank_transfer: 'bank transfer', wallet: 'wallet transaction' };
-  return `To the Fraud and Disputes Team at ${bank || 'the relevant institution'}: I dispute the reported ${channelLabel[channel] || 'financial transaction'} described in this response file. Please record the notification, preserve relevant transaction records and provide an acknowledgement number. FIRST30 has prepared this document but has not submitted it on my behalf.`;
+  return `To the Fraud and Disputes Team at ${bank || 'the relevant institution'}: I dispute the reported ${channelLabel[channel] || 'financial transaction'} described in this Evidence Passport. Please record the notification, preserve relevant transaction records and provide an acknowledgement number. FIRST30 has prepared this document but has not submitted it on my behalf.`;
 }
 
 export function callScript(fields: Record<string, unknown>) {

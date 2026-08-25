@@ -1,11 +1,9 @@
-# FIRST30 project summary
+# FIRST30 Evidence Passport — project summary
 
-FIRST30 solves a practical problem in the first minutes after financial cyber fraud: victims have screenshots, transaction references and a stressful story, but no single complete file they can reuse when speaking to a bank, the 1930 helpline or a cybercrime authority.
+Generic AI can write a fraud complaint, but it cannot guarantee which original evidence supports each statement or whether a shared package later changed. FIRST30 fills that gap.
 
-The citizen adds synthetic receipt evidence in one workspace. FIRST30 reads supported receipt text locally, lets the citizen correct every fact, detects missing or contradictory information, rejects duplicate files and builds an editable incident chronology. Every original receives a SHA-256 checksum.
+In the synthetic judged journey, a citizen adds a receipt, scam conversation and call log. FIRST30 analyses their visible text locally, normalizes observations, links canonical facts to source files and runs deterministic agreement, missing-information, duplicate and chronology checks. One deliberate amount mismatch proves that the product does more than generate prose.
 
-When the case is ready, FIRST30 creates a bilingual response PDF, normalized case JSON, the original evidence and a signed manifest inside one ZIP. A recipient can upload only `manifest.json` to FIRST30’s verification page and confirm that the recorded package has not changed. Verification exposes no citizen details or evidence.
+The result is an Evidence Passport ZIP containing original evidence, a bilingual PDF, structured provenance JSON and a signed checksum manifest. The whole ZIP can be verified locally: evidence never leaves the verifier’s browser, while only the code, manifest hash and signature are checked against FIRST30’s record.
 
-Afterward, the citizen may record acknowledgement numbers actually received from a bank, 1930 or a cybercrime report. FIRST30 never invents those events and never claims that it submitted a report, froze funds or recovered money.
-
-The product’s real output is the reusable, integrity-checked response file—not a simulated institutional outcome.
+FIRST30 proves package integrity and shows internal evidence consistency. It does not establish truth, submit a case, contact institutions, freeze funds or recover money.

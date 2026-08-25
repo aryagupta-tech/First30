@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { ensureSchema, errorResponse, json, ownedEvidence, requireSession } from '@/lib/server';
+import { ensureSchema, errorResponse, json, ownedEvidence, requireSession, syncPassportFindings } from '@/lib/server';
 
 export async function GET(request: Request, context: { params: Promise<{ id: string; evidenceId: string }> }) {
   try {
@@ -18,10 +18,15 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const row = await ownedEvidence(sessionId, id, evidenceId);
     if (row.object_key) await env.FILES.delete(String(row.object_key));
     await env.DB.batch([
+      env.DB.prepare('DELETE FROM fact_resolutions WHERE case_id = ? AND source_evidence_id = ?').bind(id, evidenceId),
+      env.DB.prepare('DELETE FROM evidence_observations WHERE evidence_id = ?').bind(evidenceId),
+      env.DB.prepare('DELETE FROM evidence_analysis WHERE evidence_id = ?').bind(evidenceId),
       env.DB.prepare('DELETE FROM evidence_integrity WHERE evidence_id = ?').bind(evidenceId),
+      env.DB.prepare('INSERT INTO custody_events (id, case_id, evidence_id, action, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), id, evidenceId, 'removed', `${String(row.kind)} evidence ${String(row.filename)} removed by the citizen`, Date.now()),
       env.DB.prepare('DELETE FROM evidence WHERE id = ? AND case_id = ?').bind(evidenceId, id),
       env.DB.prepare("UPDATE cases SET status = 'review_needed', updated_at = ? WHERE id = ? AND session_id = ?").bind(Date.now(), id, sessionId),
     ]);
+    await syncPassportFindings(id);
     return json({ deleted: true });
   } catch (error) { return errorResponse(error); }
 }

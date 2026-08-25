@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { ensureSchema, errorResponse, json, ownedCase, requireSession } from '@/lib/server';
 import { detectImageMime, sha256Hex } from '@/lib/response-file';
+import { evidenceKindSchema } from '@/lib/contracts';
 
 const allowed = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
@@ -13,6 +14,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const file = form.get('file');
     if (!(file instanceof File)) return json({ error: 'Choose a synthetic evidence image.' }, { status: 400 });
     if (!allowed.has(file.type) || file.size > 5 * 1024 * 1024) return json({ error: 'Upload a PNG, JPEG or WebP image under 5 MB.' }, { status: 400 });
+    const kind = evidenceKindSchema.parse(String(form.get('kind') || 'receipt'));
     const bytes = await file.arrayBuffer();
     if (detectImageMime(bytes) !== file.type) return json({ error: 'The selected file does not contain a valid PNG, JPEG or WebP image.' }, { status: 400 });
     const digest = await sha256Hex(bytes);
@@ -22,8 +24,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     await env.FILES.put(objectKey, bytes, { httpMetadata: { contentType: file.type }, customMetadata: { synthetic: 'true', sha256: digest } });
     await env.DB.batch([
       env.DB.prepare('INSERT INTO evidence (id, case_id, kind, object_key, filename, mime_type, size, is_sample, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .bind(evidenceId, id, String(form.get('kind') || 'transaction_receipt'), objectKey, file.name.slice(0, 180), file.type, file.size, form.get('sample') === 'true' ? 1 : 0, now),
+        .bind(evidenceId, id, kind, objectKey, file.name.slice(0, 180), file.type, file.size, form.get('sample') === 'true' ? 1 : 0, now),
       env.DB.prepare('INSERT INTO evidence_integrity (evidence_id, sha256) VALUES (?, ?)').bind(evidenceId, digest),
+      env.DB.prepare("INSERT INTO evidence_analysis (evidence_id, client_sha256, ocr_method, analysis_status) VALUES (?, ?, 'manual', 'pending')").bind(evidenceId, digest),
+      env.DB.prepare('INSERT INTO custody_events (id, case_id, evidence_id, action, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), id, evidenceId, 'added', `${kind} evidence added with SHA-256 ${digest}`, now),
       env.DB.prepare("UPDATE cases SET status = 'review_needed', updated_at = ? WHERE id = ? AND session_id = ?").bind(now, id, sessionId),
     ]);
     return json({ id: evidenceId, sha256: digest, filename: file.name, size: file.size, mimeType: file.type }, { status: 201 });

@@ -1,44 +1,44 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Header, SafetyFooter } from './Header';
 import { useLocale } from './LocaleProvider';
-import { DEMO_NARRATIVE, type EvidenceExtraction } from '@/lib/contracts';
-import { createSampleReceiptFile, readReceiptLocally } from '@/lib/client-ocr';
+import { DEMO_NARRATIVE, type EvidenceKind, type FactKey, type Observation } from '@/lib/contracts';
+import { analyseEvidenceLocally, analyseManualText, createSampleEvidenceSet } from '@/lib/client-ocr';
 import { buildResponsePackage } from '@/lib/client-export';
-import { buildComplaint, findContradictions } from '@/lib/response-file';
 
 type Row = Record<string, string | number | null>;
-type Readiness = { level: 'incomplete' | 'review_needed' | 'ready'; blockers: number; warnings: number; issues: Array<{ code: string; severity: string; field?: string; messageEn: string; messageHi: string }> };
-type Bundle = { case: Row; evidence: Row[]; chronology: Row[]; milestones: Row[]; exports: Row[]; readiness: Readiness };
-type ChronologyDraft = { occurredAt: string; eventType: 'contact' | 'transaction' | 'discovery' | 'action' | 'other'; descriptionEn: string; descriptionHi: string; source: 'citizen' | 'evidence' | 'first30' };
+type ObservationRow = Observation & { id?: string; evidenceId: string; evidenceKind: string; filename: string };
+type Resolution = { field: FactKey; value: string; normalizedValue: string; resolutionType: 'evidence' | 'manual' | 'unknown'; sourceEvidenceId?: string | null };
+type Passport = { coverage: { present: number; total: number }; counts: { passed: number; conflicts: number; missing: number; unknownFacts: number }; checks: Array<{ code: string; status: 'pass' | 'conflict' | 'missing'; titleEn: string; titleHi: string; detailEn: string; detailHi: string; evidenceIds: string[] }>; facts: Array<{ field: FactKey; resolution: Resolution | null; observations: ObservationRow[] }> };
+type Bundle = { case: Row; evidence: Row[]; chronology: Row[]; milestones: Row[]; exports: Row[]; readiness: { blockers: number }; observations: ObservationRow[]; resolutions: Resolution[]; passport: Passport; findings: Row[]; custody: Row[] };
+type Pending = { id: string; kind: EvidenceKind; filename: string; text: string; observations: Observation[]; ocrMethod: 'browser_ocr' | 'bundled_sample' | 'manual'; clientSha256: string };
+
+const FACTS: FactKey[] = ['amount', 'reference', 'recipient', 'institution', 'phone', 'occurred_at'];
+const KIND_COPY: Record<EvidenceKind, [string, string]> = { receipt: ['Payment receipt', 'भुगतान रसीद'], chat: ['Scam conversation', 'ठगी बातचीत'], call_log: ['Call log', 'कॉल लॉग'] };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init); const data = await response.json() as T & { error?: string };
   if (!response.ok) throw new Error(data.error || 'Please try again.'); return data;
 }
 
-const emptyExtraction: EvidenceExtraction = {
-  amount: { value: null, confidence: 0 }, occurredAt: { value: null, confidence: 0 }, reference: { value: null, confidence: 0 },
-  channel: { value: null, confidence: 0 }, bank: { value: null, confidence: 0 }, recipient: { value: null, confidence: 0 },
-};
-
 export function ResponseWorkspace({ caseId: suppliedCaseId }: { caseId?: string }) {
   const { locale, pick } = useLocale(); const started = useRef(false);
   const [caseId, setCaseId] = useState(suppliedCaseId || ''); const [bundle, setBundle] = useState<Bundle | null>(null);
-  const [busy, setBusy] = useState(''); const [error, setError] = useState(''); const [saved, setSaved] = useState(false);
-  const [pending, setPending] = useState<{ id: string; filename: string; ocrText: string; extraction: EvidenceExtraction; engine: string } | null>(null);
-  const [form, setForm] = useState({ fraudType: 'fake_kyc', channel: 'upi', amount: '', occurredAt: '', reference: '', bank: '', recipient: '', narrative: DEMO_NARRATIVE });
-  const [chronology, setChronology] = useState<ChronologyDraft[]>([]);
-  const [milestone, setMilestone] = useState({ kind: 'bank_contacted', reference: '', notes: '', occurredAt: new Date().toISOString().slice(0, 16) });
+  const [busy, setBusy] = useState(''); const [error, setError] = useState(''); const [pending, setPending] = useState<Pending | null>(null);
+  const [factDrafts, setFactDrafts] = useState<Record<FactKey, Resolution | null>>({ amount: null, reference: null, recipient: null, institution: null, phone: null, occurred_at: null });
+  const [ackNotes, setAckNotes] = useState<Record<string, string>>({});
 
   const applyBundle = useCallback((next: Bundle) => {
-    setBundle(next); const row = next.case;
-    setForm({ fraudType: String(row.fraud_type || 'fake_kyc'), channel: String(row.channel || 'upi'), amount: Number(row.amount || 0) > 0 ? String(row.amount) : '', occurredAt: String(row.occurred_at || '').slice(0, 16), reference: String(row.reference || ''), bank: String(row.bank || ''), recipient: String(row.recipient || ''), narrative: String(row.narrative_input || DEMO_NARRATIVE) });
-    setChronology(next.chronology.map((event) => ({ occurredAt: String(event.occurred_at), eventType: String(event.event_type) as ChronologyDraft['eventType'], descriptionEn: String(event.description_en), descriptionHi: String(event.description_hi || ''), source: String(event.source) as ChronologyDraft['source'] })));
+    setBundle(next); const drafts = {} as Record<FactKey, Resolution | null>;
+    for (const field of FACTS) {
+      const resolved = next.resolutions.find((item) => item.field === field);
+      const preferred = next.observations.find((item) => item.field === field && ((field === 'amount' || field === 'reference' || field === 'recipient' || field === 'institution' || field === 'occurred_at') ? item.evidenceKind === 'receipt' : item.evidenceKind === 'call_log')) || next.observations.find((item) => item.field === field);
+      drafts[field] = resolved || (preferred ? { field, value: preferred.value, normalizedValue: preferred.normalizedValue, resolutionType: 'evidence', sourceEvidenceId: preferred.evidenceId } : { field, value: 'Unknown', normalizedValue: 'unknown', resolutionType: 'unknown', sourceEvidenceId: null });
+    }
+    setFactDrafts(drafts);
   }, []);
-
   const refresh = useCallback(async (id: string) => { const next = await api<Bundle>(`/api/cases/${id}`); applyBundle(next); return next; }, [applyBundle]);
 
   useEffect(() => {
@@ -56,121 +56,81 @@ export function ResponseWorkspace({ caseId: suppliedCaseId }: { caseId?: string 
     })();
   }, [locale, refresh, suppliedCaseId]);
 
-  const setUnknown = (field: 'reference' | 'bank' | 'recipient') => setForm((current) => ({ ...current, [field]: 'Unknown' }));
-  const currentExtraction = pending?.extraction || (() => { try { return bundle?.evidence[0]?.extraction_json ? JSON.parse(String(bundle.evidence[0].extraction_json)) as EvidenceExtraction : null; } catch { return null; } })();
-  const contradictions = useMemo(() => findContradictions(currentExtraction, { amount: Number(form.amount), reference: form.reference }), [currentExtraction, form.amount, form.reference]);
-  const complaints = useMemo(() => buildComplaint({ ...form, amount: Number(form.amount) }), [form]);
-
-  function mergeExtraction(extraction: EvidenceExtraction) {
-    setForm((current) => ({
-      ...current,
-      amount: extraction.amount.value ? String(extraction.amount.value) : current.amount,
-      occurredAt: extraction.occurredAt.value ? String(extraction.occurredAt.value).slice(0, 16) : current.occurredAt,
-      reference: extraction.reference.value ? String(extraction.reference.value) : current.reference,
-      channel: extraction.channel.value ? String(extraction.channel.value) : current.channel,
-      bank: extraction.bank.value ? String(extraction.bank.value) : current.bank,
-      recipient: extraction.recipient.value ? String(extraction.recipient.value) : current.recipient,
-    }));
+  async function uploadEvidence(file: File, kind: EvidenceKind, sample = false, autoConfirm = false) {
+    const local = await analyseEvidenceLocally(file, kind, sample); const data = new FormData();
+    data.set('synthetic', 'true'); data.set('kind', kind); data.set('file', file); if (sample) data.set('sample', 'true');
+    const uploaded = await api<{ id: string; filename: string }>(`/api/cases/${caseId}/evidence`, { method: 'POST', body: data });
+    const analysis: Pending = { id: uploaded.id, kind, filename: uploaded.filename, ...local };
+    if (autoConfirm) await confirmAnalysis(analysis); else { setPending(analysis); await refresh(caseId); }
+    return analysis;
   }
 
-  async function addEvidence(file: File, sample = false) {
-    if (!caseId) return; setBusy('evidence'); setError('');
+  async function confirmAnalysis(analysis = pending) {
+    if (!analysis) return;
+    await api(`/api/cases/${caseId}/evidence/${analysis.id}/confirm`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ocrText: analysis.text, ocrMethod: analysis.ocrMethod, clientSha256: analysis.clientSha256, observations: analysis.observations }) });
+    if (pending?.id === analysis.id) setPending(null); await refresh(caseId);
+  }
+
+  async function loadDemo() {
+    setBusy('demo'); setError('');
     try {
-      const local = await readReceiptLocally(file, sample); const data = new FormData();
-      data.set('synthetic', 'true'); data.set('kind', 'transaction_receipt'); data.set('file', file); if (sample) data.set('sample', 'true');
-      const uploaded = await api<{ id: string; filename: string }>(`/api/cases/${caseId}/evidence`, { method: 'POST', body: data });
-      await refresh(caseId); mergeExtraction(local.extraction); setPending({ id: uploaded.id, filename: uploaded.filename, ocrText: local.text, extraction: local.extraction || emptyExtraction, engine: local.engine });
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not add evidence.'); } finally { setBusy(''); }
+      if (bundle?.evidence.length) throw new Error(pick('Remove existing evidence before loading the built-in case.', 'बिल्ट-इन केस लोड करने से पहले मौजूदा प्रमाण हटाएँ।'));
+      const samples = await createSampleEvidenceSet();
+      for (const sample of samples) await uploadEvidence(sample.file, sample.kind, true, true);
+      const latest = await refresh(caseId); await saveFacts(suggestFacts(latest));
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not load the evidence set.'); } finally { setBusy(''); }
   }
 
-  function defaultChronology() {
-    if (chronology.length) return chronology;
-    if (!form.occurredAt) return [];
-    return [{ occurredAt: form.occurredAt, eventType: 'transaction' as const, descriptionEn: `${form.channel.toUpperCase()} transaction of ₹${Number(form.amount || 0).toLocaleString('en-IN')} was reported by the citizen.`, descriptionHi: `नागरिक ने ₹${Number(form.amount || 0).toLocaleString('en-IN')} के ${form.channel.toUpperCase()} लेन-देन की जानकारी दी।`, source: 'citizen' as const }];
+  async function saveFacts(facts = factDrafts) {
+    const payload = FACTS.map((field) => facts[field]).filter(Boolean);
+    const next = await api<Bundle>(`/api/cases/${caseId}/facts`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ facts: payload }) });
+    applyBundle(next); return next;
   }
 
-  async function saveWorkspace(confirmEvidence = false) {
-    if (!caseId) throw new Error('Workspace is not ready.'); setSaved(false);
-    await api(`/api/cases/${caseId}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fraudType: form.fraudType, channel: form.channel, amount: Number(form.amount || 0), occurredAt: form.occurredAt, reference: form.reference || 'Unknown', bank: form.bank || 'Unknown', recipient: form.recipient || 'Unknown' }) });
-    await api(`/api/cases/${caseId}/draft`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ narrative: form.narrative }) });
-    const nextChronology = defaultChronology();
-    await api(`/api/cases/${caseId}/chronology`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ events: nextChronology }) });
-    if (confirmEvidence && pending) {
-      await api(`/api/cases/${caseId}/evidence/${pending.id}/confirm`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ocrText: pending.ocrText, extraction: pending.extraction }) });
-      setPending(null);
-    }
-    await api(`/api/cases/${caseId}/readiness`); const next = await refresh(caseId); setSaved(true); setTimeout(() => setSaved(false), 1800); return next;
-  }
-
-  async function handleSave(confirmEvidence = false) {
-    setBusy('save'); setError(''); try { await saveWorkspace(confirmEvidence); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not save the workspace.'); } finally { setBusy(''); }
-  }
-
-  async function removeEvidence(evidenceId: string) {
-    setBusy('remove'); setError(''); try { await api(`/api/cases/${caseId}/evidence/${evidenceId}`, { method: 'DELETE' }); if (pending?.id === evidenceId) setPending(null); await refresh(caseId); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not remove evidence.'); } finally { setBusy(''); }
-  }
-
-  async function exportFile() {
+  async function buildPassport() {
     setBusy('export'); setError('');
     try {
-      await saveWorkspace(Boolean(pending));
-      const readiness = await api<Readiness & { status: string }>(`/api/cases/${caseId}/readiness`);
-      if (readiness.blockers) throw new Error(pick('Resolve the required checks before building the response file.', 'रिस्पॉन्स फ़ाइल बनाने से पहले आवश्यक जाँच पूरी करें।'));
-      const latest = await refresh(caseId); await buildResponsePackage(caseId, latest); window.localStorage.removeItem('f30_active_case'); await refresh(caseId);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not build the response file.'); } finally { setBusy(''); }
+      await saveFacts();
+      await api(`/api/cases/${caseId}/draft`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ narrative: String(bundle?.case.narrative_input || DEMO_NARRATIVE) }) });
+      const latest = await api<Bundle>(`/api/cases/${caseId}/passport`); applyBundle(latest);
+      await buildResponsePackage(caseId, latest); window.localStorage.removeItem('f30_active_case'); await refresh(caseId);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not build the Evidence Passport.'); } finally { setBusy(''); }
   }
 
-  async function addMilestone() {
-    setBusy('milestone'); setError(''); try {
-      const next = await api<Bundle>(`/api/cases/${caseId}/milestones`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(milestone) }); applyBundle(next);
-      setMilestone((current) => ({ ...current, reference: '', notes: '' }));
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not save the milestone.'); } finally { setBusy(''); }
+  async function removeEvidence(id: string) {
+    setBusy('remove'); setError(''); try { await api(`/api/cases/${caseId}/evidence/${id}`, { method: 'DELETE' }); await refresh(caseId); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not remove evidence.'); } finally { setBusy(''); }
   }
 
-  if (!bundle) return <main className="site-shell"><Header compact /><div className="loading-state" role="status">{error || pick('Opening the response workspace…', 'रिस्पॉन्स कार्यक्षेत्र खुल रहा है…')}</div></main>;
-  const readiness = bundle.readiness; const latestExport = bundle.exports[0];
+  async function acknowledgeFinding(id: string) {
+    const note = ackNotes[id]?.trim(); if (!note) return;
+    setBusy('finding'); try { const next = await api<Bundle>(`/api/cases/${caseId}/findings/${id}/acknowledge`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ note }) }); applyBundle(next); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not save the explanation.'); } finally { setBusy(''); }
+  }
 
-  return <main className="site-shell"><Header compact /><section className="response-workspace">
-    <div className="workspace-titlebar"><div>{suppliedCaseId && <Link href="/cases" className="back-link">← {pick('All response files', 'सभी रिस्पॉन्स फ़ाइलें')}</Link>}<p className="eyebrow">{pick('Private response workspace', 'निजी रिस्पॉन्स कार्यक्षेत्र')}</p><h1>{pick('Build one verified fraud response file', 'एक सत्यापित फ्रॉड रिस्पॉन्स फ़ाइल बनाएँ')}</h1><p>{pick('Evidence, confirmed facts, chronology and documents update together. Nothing is submitted outside FIRST30.', 'प्रमाण, पुष्ट तथ्य, समयरेखा और दस्तावेज़ एक साथ अपडेट होते हैं। FIRST30 के बाहर कुछ जमा नहीं होता।')}</p></div><div className={`readiness-card readiness-${readiness.level}`}><span>{pick('File readiness', 'फ़ाइल तैयारी')}</span><strong>{pick(readiness.level === 'ready' ? 'Ready' : readiness.level === 'review_needed' ? 'Review needed' : 'Incomplete', readiness.level === 'ready' ? 'तैयार' : readiness.level === 'review_needed' ? 'समीक्षा आवश्यक' : 'अपूर्ण')}</strong><small>{readiness.blockers} {pick('required', 'आवश्यक')} · {readiness.warnings} {pick('warnings', 'चेतावनी')}</small></div></div>
+  if (!bundle) return <main className="site-shell"><Header compact /><div className="loading-state" role="status">{error || pick('Opening the Evidence Passport…', 'एविडेंस पासपोर्ट खुल रहा है…')}</div></main>;
+  const latestExport = bundle.exports[0];
+  return <main className="site-shell"><Header compact /><section className="passport-workspace">
+    <header className="passport-titlebar"><div>{suppliedCaseId && <Link href="/cases" className="back-link">← {pick('All passports', 'सभी पासपोर्ट')}</Link>}<p className="eyebrow">{pick('Source-linked evidence workspace', 'स्रोत-संबद्ध प्रमाण कार्यक्षेत्र')}</p><h1>{pick('Know what your evidence proves.', 'जानें कि आपका प्रमाण क्या साबित करता है।')}</h1><p>{pick('AI writes. FIRST30 traces every fact back to evidence, exposes conflicts and packages the result without claiming the report was accepted.', 'AI लिखता है। FIRST30 हर तथ्य को प्रमाण से जोड़ता है, विरोध दिखाता है और रिपोर्ट स्वीकार होने का दावा किए बिना पैकेज बनाता है।')}</p></div><button className="demo-set-button" disabled={Boolean(busy)} onClick={() => void loadDemo()}><span>{pick('3-file judged demo', '3-फ़ाइल जज्ड डेमो')}</span><strong>{busy === 'demo' ? pick('Analysing locally…', 'स्थानीय विश्लेषण…') : pick('Load synthetic evidence set', 'काल्पनिक प्रमाण सेट लोड करें')}</strong><small>{pick('Includes one deliberate mismatch', 'एक जानबूझकर अंतर शामिल है')}</small></button></header>
 
-    <div className="workspace-grid"><div className="workspace-primary">
-      <section className="work-card evidence-work"><div className="work-heading"><div><span className="section-number">01</span><div><h2>{pick('Evidence integrity', 'प्रमाण अखंडता')}</h2><p>{pick('Read locally, checksum every file, and reject exact duplicates.', 'स्थानीय रूप से पढ़ें, हर फ़ाइल का चेकसम बनाएँ और डुप्लिकेट रोकें।')}</p></div></div><span className="local-only">{pick('Local reader', 'स्थानीय रीडर')}</span></div>
-        <div className="evidence-actions"><button type="button" className="sample-evidence-button" disabled={Boolean(busy)} onClick={() => void createSampleReceiptFile().then((file) => addEvidence(file, true))}><span>{pick('Recommended demo', 'सुझाया गया डेमो')}</span><strong>{pick('Use synthetic UPI receipt', 'काल्पनिक UPI रसीद उपयोग करें')}</strong><small>₹18,499 · UTR826194730521</small></button><label className="evidence-drop"><strong>{pick('Choose a synthetic receipt', 'काल्पनिक रसीद चुनें')}</strong><span>{pick('PNG, JPEG or WebP · max 5 MB', 'PNG, JPEG या WebP · अधिकतम 5 MB')}</span><input type="file" accept="image/png,image/jpeg,image/webp" disabled={Boolean(busy)} onChange={(event) => { const file = event.target.files?.[0]; if (file) void addEvidence(file); event.target.value = ''; }} /></label></div>
-        {pending && <div className="pending-review"><div><span className="integrity-icon">✓</span><div><strong>{pick('Review the locally read facts', 'स्थानीय रूप से पढ़े तथ्य जाँचें')}</strong><p>{pending.filename} · {pending.engine === 'browser_ocr' ? pick('browser OCR', 'ब्राउज़र OCR') : pending.engine === 'bundled_sample' ? pick('bundled sample parser', 'बंडल नमूना पार्सर') : pick('manual entry required', 'मैनुअल एंट्री आवश्यक')}</p></div></div><button className="secondary-button" onClick={() => void handleSave(true)} disabled={Boolean(busy)}>{pick('Confirm evidence facts', 'प्रमाण तथ्यों की पुष्टि करें')}</button></div>}
-        <div className="evidence-list">{bundle.evidence.map((item) => <div key={String(item.id)}><span className={item.confirmed_at ? 'file-state confirmed' : 'file-state'}>{item.confirmed_at ? '✓' : '!'}</span><div><strong>{String(item.filename)}</strong><small>SHA-256 {String(item.sha256 || '').slice(0, 16)}… · {(Number(item.size) / 1024).toFixed(1)} KB</small></div><span className="evidence-status">{pick(item.confirmed_at ? 'Confirmed' : 'Review needed', item.confirmed_at ? 'पुष्ट' : 'समीक्षा आवश्यक')}</span><button className="text-button danger" onClick={() => void removeEvidence(String(item.id))}>{pick('Remove', 'हटाएँ')}</button></div>)}</div>
-      </section>
+    <div className="passport-layout"><aside className="evidence-rail"><div className="rail-heading"><p className="eyebrow">{pick('Evidence rail', 'प्रमाण सूची')}</p><h2>{bundle.passport.coverage.present}/{bundle.passport.coverage.total} {pick('types present', 'प्रकार मौजूद')}</h2></div>{(['receipt', 'chat', 'call_log'] as EvidenceKind[]).map((kind) => {
+      const item = bundle.evidence.find((evidence) => evidence.kind === kind); return <article key={kind} className={`evidence-source-card ${item ? 'has-evidence' : ''}`}><div><span>{kind === 'receipt' ? '₹' : kind === 'chat' ? '“”' : '☎'}</span><div><strong>{pick(...KIND_COPY[kind])}</strong><small>{item ? `${String(item.filename)} · ${item.analysis_status === 'confirmed' ? pick('Analysed', 'विश्लेषित') : pick('Review needed', 'समीक्षा आवश्यक')}` : pick('Not added', 'नहीं जोड़ा')}</small></div></div>{item ? <><code>{String(item.sha256 || '').slice(0, 12)}…</code><button className="text-button danger" onClick={() => void removeEvidence(String(item.id))}>{pick('Remove', 'हटाएँ')}</button></> : <label className="rail-upload">+ {pick('Choose image', 'चित्र चुनें')}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file, kind).catch((caught) => setError(caught instanceof Error ? caught.message : 'Upload failed.')); event.target.value = ''; }} /></label>}</article>;
+    })}<section className="custody-mini"><strong>{pick('Chain of custody', 'अभिरक्षा श्रृंखला')}</strong><span>{bundle.custody.length} {pick('recorded events', 'दर्ज घटनाएँ')}</span><small>{pick('Added · analysed · confirmed · exported', 'जोड़ा · विश्लेषित · पुष्ट · निर्यात')}</small></section></aside>
 
-      <section className="work-card"><div className="work-heading"><div><span className="section-number">02</span><div><h2>{pick('Confirmed transaction facts', 'पुष्ट लेन-देन तथ्य')}</h2><p>{pick('Correct the local reader. Use Unknown when a fact is unavailable.', 'स्थानीय रीडर को सुधारें। जानकारी न हो तो अज्ञात चुनें।')}</p></div></div>{saved && <span className="saved-chip">{pick('Saved', 'सहेजा गया')}</span>}</div>
-        <div className="fact-grid"><label>{pick('Amount lost', 'गई हुई राशि')}<input inputMode="numeric" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value.replace(/\D/g, '') })} placeholder="18499" /></label><label>{pick('Payment channel', 'भुगतान माध्यम')}<select value={form.channel} onChange={(event) => setForm({ ...form, channel: event.target.value })}><option value="upi">UPI</option><option value="card">Card</option><option value="bank_transfer">Bank transfer</option><option value="wallet">Wallet</option></select></label><label>{pick('Incident time', 'घटना समय')}<input type="datetime-local" value={form.occurredAt} onChange={(event) => setForm({ ...form, occurredAt: event.target.value })} /></label><FieldWithUnknown label={pick('Transaction reference', 'लेन-देन संदर्भ')} value={form.reference} onChange={(value) => setForm({ ...form, reference: value })} onUnknown={() => setUnknown('reference')} pick={pick} /><FieldWithUnknown label={pick('Bank or wallet', 'बैंक या वॉलेट')} value={form.bank} onChange={(value) => setForm({ ...form, bank: value })} onUnknown={() => setUnknown('bank')} pick={pick} /><FieldWithUnknown label={pick('Recipient identifier', 'प्राप्तकर्ता पहचान')} value={form.recipient} onChange={(value) => setForm({ ...form, recipient: value })} onUnknown={() => setUnknown('recipient')} pick={pick} /></div>
-        {contradictions.length > 0 && <div className="contradiction-box"><strong>{pick('Check these differences', 'इन अंतरों की जाँच करें')}</strong>{contradictions.map((item) => <p key={item}>• {item}</p>)}</div>}
-        <label className="narrative-field">{pick('What happened, in the citizen’s own words', 'नागरिक के अपने शब्दों में क्या हुआ')}<textarea rows={6} maxLength={2000} value={form.narrative} onChange={(event) => setForm({ ...form, narrative: event.target.value })} /><span>{form.narrative.length}/2000</span></label>
-        <button className="secondary-button save-workspace" onClick={() => void handleSave(Boolean(pending))} disabled={Boolean(busy)}>{busy === 'save' ? pick('Checking file…', 'फ़ाइल जाँची जा रही है…') : pick('Save and check readiness', 'सहेजें और तैयारी जाँचें')}</button>
-      </section>
+    <section className="fact-board"><div className="board-heading"><div><p className="eyebrow">{pick('Source-linked fact board', 'स्रोत-संबद्ध तथ्य बोर्ड')}</p><h2>{pick('Every claim shows its support', 'हर दावे का प्रमाण दिखता है')}</h2></div><button className="secondary-button" disabled={Boolean(busy)} onClick={() => void saveFacts().catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not save facts.'))}>{pick('Confirm source-linked facts', 'स्रोत-संबद्ध तथ्य पुष्ट करें')}</button></div>
+      <div className="source-facts">{FACTS.map((field) => { const draft = factDrafts[field]; const observations = bundle.observations.filter((item) => item.field === field); return <article key={field}><div className="fact-label"><span>{factLabel(field, locale)}</span><small>{draft?.resolutionType === 'evidence' ? pick('Evidence supported', 'प्रमाण समर्थित') : draft?.resolutionType === 'manual' ? pick('Manually entered', 'मैनुअल प्रविष्टि') : pick('Unknown', 'अज्ञात')}</small></div><input value={draft?.value || ''} onChange={(event) => setFactDrafts((current) => ({ ...current, [field]: { field, value: event.target.value, normalizedValue: event.target.value, resolutionType: event.target.value === 'Unknown' ? 'unknown' : 'manual', sourceEvidenceId: null } }))} /><div className="source-chips">{observations.map((observation) => <button key={`${observation.evidenceId}-${observation.normalizedValue}`} className={draft?.sourceEvidenceId === observation.evidenceId && draft?.normalizedValue === observation.normalizedValue ? 'selected' : ''} title={observation.sourceText} onClick={() => setFactDrafts((current) => ({ ...current, [field]: { field, value: observation.value, normalizedValue: observation.normalizedValue, resolutionType: 'evidence', sourceEvidenceId: observation.evidenceId } }))}>{kindShort(observation.evidenceKind)} · {observation.value}</button>)}<button onClick={() => setFactDrafts((current) => ({ ...current, [field]: { field, value: 'Unknown', normalizedValue: 'unknown', resolutionType: 'unknown', sourceEvidenceId: null } }))}>{pick('Unknown', 'अज्ञात')}</button></div></article>; })}</div>
+      <section className="chronology-passport"><div><p className="eyebrow">{pick('Evidence chronology', 'प्रमाण समयरेखा')}</p><h3>{pick('Sequence reconstructed from source timestamps', 'स्रोत समय से बनी घटना श्रृंखला')}</h3></div><ol>{bundle.observations.filter((item) => item.field === 'occurred_at').sort((a,b) => a.value.localeCompare(b.value)).map((item) => <li key={`${item.evidenceId}-${item.value}`}><time>{item.value.replace('T',' ')}</time><span>{kindShort(item.evidenceKind)} · {item.sourceText}</span></li>)}</ol></section>
+    </section>
 
-      <section className="work-card"><div className="work-heading"><div><span className="section-number">03</span><div><h2>{pick('Incident chronology', 'घटना समयरेखा')}</h2><p>{pick('Only citizen-confirmed events appear in the response file.', 'केवल नागरिक-पुष्ट घटनाएँ रिस्पॉन्स फ़ाइल में आती हैं।')}</p></div></div><button className="text-button" onClick={() => setChronology([...(chronology.length ? chronology : defaultChronology()), { occurredAt: form.occurredAt || new Date().toISOString().slice(0, 16), eventType: 'action', descriptionEn: '', descriptionHi: '', source: 'citizen' }])}>+ {pick('Add event', 'घटना जोड़ें')}</button></div>
-        <div className="chronology-editor">{(chronology.length ? chronology : defaultChronology()).map((event, index) => <div key={index}><input type="datetime-local" value={event.occurredAt.slice(0, 16)} onChange={(e) => setChronology(updateChronology(chronology.length ? chronology : defaultChronology(), index, { occurredAt: e.target.value }))} /><select value={event.eventType} onChange={(e) => setChronology(updateChronology(chronology.length ? chronology : defaultChronology(), index, { eventType: e.target.value as ChronologyDraft['eventType'] }))}><option value="contact">Contact</option><option value="transaction">Transaction</option><option value="discovery">Discovery</option><option value="action">Citizen action</option><option value="other">Other</option></select><input value={event.descriptionEn} aria-label="Event description" onChange={(e) => setChronology(updateChronology(chronology.length ? chronology : defaultChronology(), index, { descriptionEn: e.target.value }))} /><button className="text-button danger" onClick={() => setChronology((chronology.length ? chronology : defaultChronology()).filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>
-      </section>
-    </div>
+    <aside className="sufficiency-panel"><p className="eyebrow">{pick('Evidence sufficiency', 'प्रमाण पर्याप्तता')}</p><h2>{bundle.passport.counts.conflicts ? pick('Conflicts found', 'विरोध मिले') : bundle.passport.counts.missing ? pick('Incomplete evidence', 'अपूर्ण प्रमाण') : pick('Passport ready', 'पासपोर्ट तैयार')}</h2><div className="exact-counts"><div><strong>{bundle.passport.counts.passed}</strong><span>{pick('checks passed', 'जाँच पास')}</span></div><div className="conflict"><strong>{bundle.passport.counts.conflicts}</strong><span>{pick('conflicts', 'विरोध')}</span></div><div><strong>{bundle.passport.counts.unknownFacts}</strong><span>{pick('unknown facts', 'अज्ञात तथ्य')}</span></div></div><div className="check-list">{bundle.passport.checks.map((check) => <div key={check.code} className={`check-${check.status}`}><span>{check.status === 'pass' ? '✓' : check.status === 'conflict' ? '!' : '–'}</span><p><strong>{locale === 'hi' ? check.titleHi : check.titleEn}</strong><small>{locale === 'hi' ? check.detailHi : check.detailEn}</small></p></div>)}</div>{bundle.findings.filter((item) => item.status === 'conflict').map((finding) => <div className="finding-note" key={String(finding.id)}><strong>{pick('Conflict remains in export', 'विरोध निर्यात में रहेगा')}</strong>{finding.acknowledgement_note ? <p>{String(finding.acknowledgement_note)}</p> : <><input placeholder={pick('Add citizen explanation', 'नागरिक स्पष्टीकरण जोड़ें')} value={ackNotes[String(finding.id)] || ''} onChange={(e) => setAckNotes({ ...ackNotes, [String(finding.id)]: e.target.value })} /><button onClick={() => void acknowledgeFinding(String(finding.id))}>{pick('Attach explanation', 'स्पष्टीकरण जोड़ें')}</button></>}</div>)}<button className="build-passport-button" disabled={Boolean(busy) || !bundle.evidence.length} onClick={() => void buildPassport()}><span>{busy === 'export' ? pick('Building passport…', 'पासपोर्ट बन रहा है…') : pick('Build Evidence Passport', 'एविडेंस पासपोर्ट बनाएँ')}</span><small>{pick('Signed ZIP · bilingual PDF · originals', 'हस्ताक्षरित ZIP · द्विभाषी PDF · मूल फ़ाइलें')}</small></button>{latestExport && <div className="passport-export-record"><strong>{String(latestExport.verification_code)}</strong><small>Version {String(latestExport.version)}</small><Link href="/verify">{pick('Verify complete ZIP', 'पूरा ZIP सत्यापित करें')} →</Link></div>}<p className="export-boundary">{pick('Integrity and consistency—not truth, acceptance or recovery.', 'अखंडता और संगति—सत्य, स्वीकृति या राशि वापसी नहीं।')}</p></aside></div>
 
-    <aside className="workspace-sidebar"><section className="readiness-panel"><p className="eyebrow">{pick('Readiness checks', 'तैयारी जाँच')}</p><h2>{pick('What the file still needs', 'फ़ाइल को अभी क्या चाहिए')}</h2>{readiness.issues.length ? <ul>{readiness.issues.map((issue) => <li key={issue.code} className={issue.severity}><span>{issue.severity === 'blocker' ? '!' : 'i'}</span><p>{locale === 'hi' ? issue.messageHi : issue.messageEn}</p></li>)}</ul> : <div className="all-clear"><span>✓</span>{pick('All checks passed.', 'सभी जाँच पूरी।')}</div>}</section>
-      <section className="document-preview"><div className="preview-top"><span>FIRST30</span><small>{pick('LIVE PREVIEW', 'लाइव प्रीव्यू')}</small></div><h3>{pick('Fraud response file', 'फ्रॉड रिस्पॉन्स फ़ाइल')}</h3><dl><div><dt>{pick('Amount', 'राशि')}</dt><dd>₹{Number(form.amount || 0).toLocaleString('en-IN')}</dd></div><div><dt>{pick('Reference', 'संदर्भ')}</dt><dd>{form.reference || 'Unknown'}</dd></div><div><dt>{pick('Evidence', 'प्रमाण')}</dt><dd>{bundle.evidence.length} {pick('files', 'फ़ाइलें')}</dd></div></dl><div className="preview-complaint"><strong>{pick('Citizen complaint', 'नागरिक शिकायत')}</strong><p>{locale === 'hi' ? complaints.complaintHi : complaints.complaintEn}</p></div><div className="preview-includes">PDF · JSON · {pick('Original evidence', 'मूल प्रमाण')} · SHA-256</div></section>
-      <button className="build-file-button" disabled={Boolean(busy) || readiness.blockers > 0} onClick={() => void exportFile()}><span>{busy === 'export' ? pick('Building verified package…', 'सत्यापित पैकेज बन रहा है…') : pick('Build response file', 'रिस्पॉन्स फ़ाइल बनाएँ')}</span><small>{pick('Download signed ZIP + bilingual PDF', 'हस्ताक्षरित ZIP + द्विभाषी PDF डाउनलोड करें')}</small></button>
-      <p className="export-boundary">{pick('FIRST30 prepares and verifies the file. It does not submit it or claim that money was recovered.', 'FIRST30 फ़ाइल तैयार और सत्यापित करता है। यह उसे जमा नहीं करता और राशि वापसी का दावा नहीं करता।')}</p>
-      {latestExport && <section className="export-record"><span>{pick('Latest verified package', 'नवीनतम सत्यापित पैकेज')}</span><strong>{String(latestExport.verification_code)}</strong><small>Version {String(latestExport.version)} · {new Date(Number(latestExport.created_at)).toLocaleString(locale === 'hi' ? 'hi-IN' : 'en-IN')}</small><Link href="/verify">{pick('Verify a manifest', 'मैनिफेस्ट सत्यापित करें')} →</Link></section>}
-    </aside></div>
-
-    {latestExport && <section className="milestone-section"><div><p className="eyebrow">{pick('Citizen-owned follow-up', 'नागरिक द्वारा दर्ज फॉलो-अप')}</p><h2>{pick('Record what actually happened next', 'वास्तव में आगे क्या हुआ, दर्ज करें')}</h2><p>{pick('FIRST30 shows an external action only after the citizen enters its real acknowledgement or note.', 'FIRST30 बाहरी कार्रवाई तभी दिखाता है जब नागरिक वास्तविक पावती या नोट दर्ज करता है।')}</p></div><div className="milestone-form"><select value={milestone.kind} onChange={(e) => setMilestone({ ...milestone, kind: e.target.value })}><option value="bank_contacted">Bank contacted</option><option value="helpline_called">1930 called</option><option value="cyber_report_submitted">Cybercrime report submitted</option><option value="follow_up">Follow-up recorded</option></select><input placeholder={pick('Acknowledgement or reference', 'पावती या संदर्भ')} value={milestone.reference} onChange={(e) => setMilestone({ ...milestone, reference: e.target.value })} /><input type="datetime-local" value={milestone.occurredAt} onChange={(e) => setMilestone({ ...milestone, occurredAt: e.target.value })} /><input placeholder={pick('Optional note', 'वैकल्पिक नोट')} value={milestone.notes} onChange={(e) => setMilestone({ ...milestone, notes: e.target.value })} /><button className="primary-button" disabled={Boolean(busy)} onClick={() => void addMilestone()}>{pick('Record milestone', 'माइलस्टोन दर्ज करें')}</button></div><div className="milestone-list">{bundle.milestones.map((item) => <div key={String(item.id)}><span>✓</span><div><strong>{milestoneLabel(String(item.kind), locale)}</strong><p>{String(item.reference || item.notes || pick('Citizen recorded this action.', 'नागरिक ने यह कार्रवाई दर्ज की।'))}</p><small>{new Date(String(item.occurred_at)).toLocaleString(locale === 'hi' ? 'hi-IN' : 'en-IN')}</small></div></div>)}</div></section>}
+    {pending && <div className="analysis-drawer" role="dialog" aria-modal="true"><div><p className="eyebrow">{pick('Local evidence analysis', 'स्थानीय प्रमाण विश्लेषण')}</p><h2>{pick('Review the extracted source text', 'निकाला गया स्रोत पाठ जाँचें')}</h2><p>{pending.filename} · {pending.ocrMethod === 'manual' ? pick('Manual fallback', 'मैनुअल विकल्प') : pick('Browser-local reader', 'ब्राउज़र-स्थानीय रीडर')}</p><textarea value={pending.text} onChange={(event) => { const analysed = analyseManualText(pending.kind, event.target.value); setPending({ ...pending, text: analysed.text, observations: analysed.observations, ocrMethod: analysed.ocrMethod }); }} placeholder={pick('Paste or type the visible text from this synthetic image.', 'इस काल्पनिक चित्र का दिखाई देने वाला पाठ लिखें।')} /><div className="observation-preview">{pending.observations.map((item, index) => <span key={`${item.field}-${index}`}>{item.field}: {item.value}</span>)}</div><div className="drawer-actions"><button className="text-button" onClick={() => setPending(null)}>{pick('Close', 'बंद करें')}</button><button className="primary-button" disabled={!pending.observations.length} onClick={() => void confirmAnalysis().catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not confirm analysis.'))}>{pick('Confirm analysis', 'विश्लेषण पुष्ट करें')}</button></div></div></div>}
     {error && <div className="error-banner workspace-error" role="alert">{error}</div>}
   </section><SafetyFooter /></main>;
 }
 
-function FieldWithUnknown({ label, value, onChange, onUnknown, pick }: { label: string; value: string; onChange: (value: string) => void; onUnknown: () => void; pick: (en: string, hi: string) => string }) {
-  return <label>{label}<span className="field-with-action"><input value={value} onChange={(event) => onChange(event.target.value)} /><button type="button" onClick={onUnknown}>{pick('Unknown', 'अज्ञात')}</button></span></label>;
+function suggestFacts(bundle: Bundle) {
+  const drafts = {} as Record<FactKey, Resolution | null>;
+  for (const field of FACTS) { const observation = bundle.observations.find((item) => item.field === field && (field === 'phone' ? item.evidenceKind === 'call_log' : item.evidenceKind === 'receipt')) || bundle.observations.find((item) => item.field === field); drafts[field] = observation ? { field, value: observation.value, normalizedValue: observation.normalizedValue, resolutionType: 'evidence', sourceEvidenceId: observation.evidenceId } : { field, value: 'Unknown', normalizedValue: 'unknown', resolutionType: 'unknown', sourceEvidenceId: null }; }
+  return drafts;
 }
-
-function updateChronology(items: ChronologyDraft[], index: number, patch: Partial<ChronologyDraft>) { return items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item); }
-
-function milestoneLabel(kind: string, locale: string) {
-  const labels: Record<string, [string, string]> = { bank_contacted: ['Bank contacted', 'बैंक से संपर्क'], helpline_called: ['1930 called', '1930 पर कॉल'], cyber_report_submitted: ['Cybercrime report submitted', 'साइबर क्राइम रिपोर्ट जमा'], follow_up: ['Follow-up recorded', 'फॉलो-अप दर्ज'] };
-  const value = labels[kind] || [kind, kind]; return locale === 'hi' ? value[1] : value[0];
-}
+function kindShort(kind: string) { return kind === 'receipt' ? 'Receipt' : kind === 'chat' ? 'Chat' : 'Call log'; }
+function factLabel(field: FactKey, locale: string) { const labels: Record<FactKey,[string,string]> = { amount:['Amount','राशि'],reference:['Transaction reference','लेन-देन संदर्भ'],recipient:['Recipient','प्राप्तकर्ता'],institution:['Institution','संस्था'],phone:['Caller phone','कॉलर फ़ोन'],occurred_at:['Transaction time','लेन-देन समय'] }; return labels[field][locale === 'hi' ? 1 : 0]; }

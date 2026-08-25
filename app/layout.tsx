@@ -11,10 +11,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const metadataBase = new URL(process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`);
   return {
     metadataBase,
-    title: 'FIRST30 — The first 30 minutes matter',
-    description: 'Turn scattered fraud evidence into one complete, verifiable response file.',
-    openGraph: { title: 'FIRST30', description: 'Explain the fraud once. Use the file everywhere.', images: ['/og.png'] },
-    twitter: { card: 'summary_large_image', title: 'FIRST30', description: 'Explain the fraud once. Use the file everywhere.', images: ['/og.png'] },
+    title: 'FIRST30 — Know what your evidence proves',
+    description: 'Connect fraud facts to their sources, expose contradictions and build a tamper-evident Evidence Passport.',
+    openGraph: { title: 'FIRST30 Evidence Passport', description: 'AI writes. FIRST30 traces every fact back to evidence.', images: ['/og.png'] },
+    twitter: { card: 'summary_large_image', title: 'FIRST30 Evidence Passport', description: 'AI writes. FIRST30 traces every fact back to evidence.', images: ['/og.png'] },
   };
 }
 

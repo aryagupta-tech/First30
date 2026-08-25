@@ -1,47 +1,56 @@
 'use client';
 
-import { SAMPLE_OCR_TEXT } from './contracts';
-import { parseReceiptText } from './response-file';
+import { SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, type EvidenceKind } from './contracts';
+import { observationsFromText } from './evidence-passport';
+import { sha256Hex } from './response-file';
 
 type TextDetectorResult = { rawValue?: string };
 type TextDetectorConstructor = new () => { detect(source: ImageBitmapSource): Promise<TextDetectorResult[]> };
 
-export async function readReceiptLocally(file: File, sample = false) {
-  let text = '';
-  let engine: 'browser_ocr' | 'bundled_sample' | 'manual' = 'manual';
+export const SAMPLE_TEXT: Record<EvidenceKind, string> = { receipt: SAMPLE_OCR_TEXT, chat: SAMPLE_CHAT_TEXT, call_log: SAMPLE_CALL_LOG_TEXT };
+
+export async function analyseEvidenceLocally(file: File, kind: EvidenceKind, sample = false) {
+  let text = ''; let ocrMethod: 'browser_ocr' | 'bundled_sample' | 'manual' = 'manual';
   const TextDetector = (globalThis as typeof globalThis & { TextDetector?: TextDetectorConstructor }).TextDetector;
   if (TextDetector) {
     try {
-      const bitmap = await createImageBitmap(file);
-      const results = await new TextDetector().detect(bitmap);
-      bitmap.close();
+      const bitmap = await createImageBitmap(file); const results = await new TextDetector().detect(bitmap); bitmap.close();
       text = results.map((item) => item.rawValue || '').filter(Boolean).join('\n');
-      if (text.trim()) engine = 'browser_ocr';
+      if (text.trim()) ocrMethod = 'browser_ocr';
     } catch { text = ''; }
   }
-  if (!text && sample) { text = SAMPLE_OCR_TEXT; engine = 'bundled_sample'; }
-  return { text, extraction: parseReceiptText(text), engine };
+  if (!text && sample) { text = SAMPLE_TEXT[kind]; ocrMethod = 'bundled_sample'; }
+  return { text, observations: observationsFromText(kind, text), ocrMethod, clientSha256: await sha256Hex(await file.arrayBuffer()) };
 }
 
-export async function createSampleReceiptFile() {
+export function analyseManualText(kind: EvidenceKind, text: string) {
+  return { text, observations: observationsFromText(kind, text), ocrMethod: 'manual' as const };
+}
+
+export async function createSampleEvidenceSet() {
+  return Promise.all((['receipt', 'chat', 'call_log'] as EvidenceKind[]).map(async (kind) => ({ kind, file: await createSampleImage(kind) })));
+}
+
+async function createSampleImage(kind: EvidenceKind) {
   const canvas = document.createElement('canvas'); canvas.width = 900; canvas.height = 1180;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Could not prepare the sample receipt.');
-  ctx.fillStyle = '#fffefa'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#14273d'; ctx.font = '700 38px system-ui'; ctx.fillText('Bharat Cooperative Bank', 72, 100);
-  ctx.fillStyle = '#15735b'; ctx.font = '800 34px system-ui'; ctx.fillText('PAYMENT SUCCESSFUL', 72, 175);
-  ctx.strokeStyle = '#dce1df'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(72, 215); ctx.lineTo(828, 215); ctx.stroke();
-  const lines = [
-    ['Amount', '₹18,499.00'], ['Payment method', 'UPI'], ['UTR', 'UTR826194730521'],
-    ['To', 'verify.kyc@fakeupi'], ['Date', '21/08/2026 18:42'], ['Status', 'Debited'],
-  ];
-  lines.forEach(([label, value], index) => {
-    const y = 310 + index * 112;
-    ctx.fillStyle = '#667482'; ctx.font = '500 25px system-ui'; ctx.fillText(label, 72, y);
-    ctx.fillStyle = '#14273d'; ctx.font = index === 0 ? '800 43px system-ui' : '700 29px system-ui'; ctx.fillText(value, 72, y + 46);
-  });
-  ctx.fillStyle = '#eaf0f5'; ctx.fillRect(72, 1010, 756, 78);
-  ctx.fillStyle = '#536474'; ctx.font = '600 22px system-ui'; ctx.fillText('Synthetic FIRST30 demonstration evidence', 102, 1059);
+  const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Could not prepare synthetic evidence.');
+  ctx.fillStyle = kind === 'chat' ? '#e9f4ee' : '#fffefa'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#14273d'; ctx.font = '800 38px system-ui'; ctx.fillText(kind === 'receipt' ? 'Bharat Cooperative Bank' : kind === 'chat' ? 'Scam conversation' : 'Recent calls', 72, 100);
+  ctx.fillStyle = kind === 'receipt' ? '#15735b' : '#df5b34'; ctx.font = '800 25px system-ui'; ctx.fillText(kind === 'receipt' ? 'PAYMENT SUCCESSFUL' : kind === 'chat' ? 'WHATSAPP · SYNTHETIC' : 'CALL LOG · SYNTHETIC', 72, 160);
+  ctx.strokeStyle = '#dce1df'; ctx.beginPath(); ctx.moveTo(72, 205); ctx.lineTo(828, 205); ctx.stroke();
+  const lines = SAMPLE_TEXT[kind].split('\n').slice(kind === 'receipt' ? 1 : 0); let y = 280;
+  for (const line of lines) {
+    const wrapped = wrapCanvas(ctx, line, 740); ctx.fillStyle = '#14273d'; ctx.font = '650 26px system-ui';
+    for (const part of wrapped) { ctx.fillText(part, 80, y); y += 43; }
+    y += kind === 'chat' ? 28 : 19;
+  }
+  ctx.fillStyle = '#e4eaed'; ctx.fillRect(72, 1030, 756, 74); ctx.fillStyle = '#536474'; ctx.font = '650 21px system-ui'; ctx.fillText('Synthetic FIRST30 demonstration evidence', 105, 1076);
   const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Could not create sample evidence.')), 'image/png'));
-  return new File([blob], 'sample-upi-receipt.png', { type: 'image/png' });
+  return new File([blob], `sample-${kind.replace('_', '-')}.png`, { type: 'image/png' });
+}
+
+function wrapCanvas(ctx: CanvasRenderingContext2D, text: string, width: number) {
+  const words = text.split(/\s+/); const lines: string[] = []; let line = '';
+  for (const word of words) { const next = line ? `${line} ${word}` : word; if (ctx.measureText(next).width > width && line) { lines.push(line); line = word; } else line = next; }
+  if (line) lines.push(line); return lines;
 }

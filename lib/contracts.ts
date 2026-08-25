@@ -4,6 +4,9 @@ export type Locale = 'en' | 'hi';
 export type FraudChannel = 'upi' | 'card' | 'bank_transfer' | 'wallet';
 export type CaseStatus = 'draft' | 'review_needed' | 'ready' | 'exported';
 export type MilestoneKind = 'bank_contacted' | 'helpline_called' | 'cyber_report_submitted' | 'follow_up';
+export type EvidenceKind = 'receipt' | 'chat' | 'call_log';
+export type FactKey = 'amount' | 'reference' | 'recipient' | 'institution' | 'phone' | 'occurred_at';
+export type Observation = { field: FactKey; value: string; normalizedValue: string; sourceText: string; confidence: number };
 
 export type ExtractionField = { value: string | number | null; confidence: number };
 export type EvidenceExtraction = {
@@ -23,6 +26,29 @@ export const extractionSchema = z.object({
   bank: z.object({ value: z.union([z.string(), z.null()]), confidence: z.number().min(0).max(1) }),
   recipient: z.object({ value: z.union([z.string(), z.null()]), confidence: z.number().min(0).max(1) }),
 });
+
+export const evidenceKindSchema = z.enum(['receipt', 'chat', 'call_log']);
+export const factKeySchema = z.enum(['amount', 'reference', 'recipient', 'institution', 'phone', 'occurred_at']);
+export const observationSchema = z.object({
+  field: factKeySchema,
+  value: z.string().min(1).max(240),
+  normalizedValue: z.string().min(1).max(240),
+  sourceText: z.string().min(1).max(500),
+  confidence: z.number().min(0).max(1),
+});
+export const evidenceAnalysisSchema = z.object({
+  ocrText: z.string().max(12_000),
+  ocrMethod: z.enum(['browser_ocr', 'bundled_sample', 'manual']),
+  clientSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  observations: z.array(observationSchema).max(30),
+});
+export const factResolutionSchema = z.object({
+  field: factKeySchema,
+  value: z.string().min(1).max(240),
+  resolutionType: z.enum(['evidence', 'manual', 'unknown']),
+  sourceEvidenceId: z.string().uuid().nullable().optional(),
+});
+export const findingAcknowledgementSchema = z.object({ note: z.string().min(3).max(500) });
 
 export const caseFieldsSchema = z.object({
   fraudType: z.string().min(1).max(60),
@@ -59,8 +85,8 @@ export const manifestFileSchema = z.object({
 });
 
 export const manifestCoreSchema = z.object({
-  format: z.literal('FIRST30-response-file'),
-  formatVersion: z.literal(1),
+  format: z.enum(['FIRST30-response-file', 'FIRST30-evidence-passport']),
+  formatVersion: z.union([z.literal(1), z.literal(2)]),
   caseId: z.string().uuid(),
   createdAt: z.number().int().positive(),
   caseFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
@@ -89,6 +115,17 @@ UPI transaction
 UTR UTR826194730521
 To verify.kyc@fakeupi
 21/08/2026 18:42`;
+
+export const SAMPLE_CHAT_TEXT = `WhatsApp chat with +91 98765 43210
+21/08/2026 18:34 We are calling from Bharat Cooperative Bank KYC desk.
+21/08/2026 18:36 Send ₹18,400 to verify.kyc@fakeupi immediately.
+21/08/2026 18:37 Your KYC will be blocked today.`;
+
+export const SAMPLE_CALL_LOG_TEXT = `Recent calls
++91 98765 43210
+Incoming call
+21/08/2026 18:28
+Duration 06:12`;
 
 export const SAMPLE_EXTRACTION: EvidenceExtraction = {
   amount: { value: 18499, confidence: 0.99 },

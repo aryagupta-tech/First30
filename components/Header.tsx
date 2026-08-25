@@ -11,7 +11,7 @@ export function Header({ compact = false }: { compact?: boolean }) {
         <span className="brand-mark">30</span><span>FIRST30</span>
       </Link>
       <div className="topbar-actions">
-        <Link className="header-link" href="/verify">{pick('Verify a file', 'फ़ाइल सत्यापित करें')}</Link>
+        <Link className="header-link" href="/verify">{pick('Verify a ZIP', 'ZIP सत्यापित करें')}</Link>
         <span className="prototype-pill">{pick('Private · synthetic prototype', 'निजी · काल्पनिक प्रोटोटाइप')}</span>
         <button className="language-button" type="button" onClick={() => setLocale(locale === 'en' ? 'hi' : 'en')} aria-label={pick('Switch to Hindi', 'अंग्रेज़ी में बदलें')}>
           {locale === 'en' ? 'हिंदी' : 'EN'}
