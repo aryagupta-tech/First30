@@ -2,48 +2,48 @@
 
 ![FIRST30 — The first 30 minutes matter](public/og.png)
 
-FIRST30 is an end-to-end financial cyber-fraud reporting and recovery prototype built for India. It turns a confusing, high-stress reporting process into one guided journey: capture the incident, structure the evidence, submit a bilingual complaint, respond to follow-up requests, and track a simulated partial restoration.
+FIRST30 turns scattered financial-fraud evidence into one complete, verifiable response file. A citizen can organise synthetic evidence, confirm locally read transaction facts, identify missing information, build a chronology and download a bilingual package containing the originals, a PDF, case JSON and a signed checksum manifest.
 
 > [!IMPORTANT]
-> FIRST30 is a demonstration using synthetic people, transactions, banks, evidence and recovery events. It does not contact any bank, police department or government system. For a real financial cyber-fraud incident in India, call the national helpline at **1930**.
+> FIRST30 is an independent prototype using synthetic people, transactions and evidence. It does not submit reports, contact a bank or government system, freeze funds or recover money. For a real financial cyber-fraud incident in India, call **1930**.
 
-## What it demonstrates
+## What genuinely works
 
-- A five-step English and Hindi fraud-reporting flow
-- UPI, card, bank-transfer and wallet incident capture
-- Synthetic receipt upload with a safe built-in sample
-- AI-assisted extraction with editable, field-level confirmation
-- Factual bilingual complaint drafting without invented details
-- Internal case submission with resumable progress
-- A citizen-facing timeline for every case update
-- Simulated bank-statement follow-up and evidence response
-- A complete ₹18,499 loss-to-₹12,000 partial-restoration journey
-- Responsive, keyboard-accessible controls designed to meet WCAG 2.2 AA
-- No redirects to external government, police or banking portals
+- A single English/Hindi response workspace rather than a click-through simulation
+- Private browser receipt reading when supported, with manual confirmation fallback
+- SHA-256 hashing and duplicate-evidence rejection
+- Missing-field, future-time and evidence/confirmation checks
+- Editable incident chronology
+- Deterministic English/Hindi complaint generation from confirmed facts
+- Channel-specific dispute letter and plain-language 1930 call script
+- Downloadable ZIP with original evidence, bilingual PDF, `case.json` and `manifest.json`
+- Server-signed manifest with privacy-preserving public verification
+- Citizen-recorded bank, 1930, cybercrime and follow-up acknowledgement numbers
+- Anonymous 24-hour sessions with D1 and R2-backed persistence
 
 ## Demo journey
 
-1. Start a synthetic report and choose the fraud and payment type.
-2. Use the bundled receipt or upload a synthetic image up to 5 MB.
-3. Review and correct every extracted transaction field.
-4. Describe the incident and generate an English/Hindi complaint.
-5. Consent to the simulation and submit the report internally.
-6. Provide the requested sample bank statement.
-7. Confirm the masked demo account and complete the simulated restoration.
+1. Open the response workspace.
+2. Use the synthetic UPI receipt or choose another synthetic image.
+3. Review locally read facts and correct anything uncertain.
+4. Confirm evidence, fill unavailable fields with `Unknown`, and review readiness checks.
+5. Edit the automatically prepared chronology.
+6. Build and download the signed ZIP/PDF response file.
+7. Upload `manifest.json` on `/verify` to prove the recorded manifest is unchanged.
+8. Optionally record real acknowledgement numbers the citizen receives afterward.
 
-The final case records ₹12,000 as restored and ₹6,499 as remaining under simulated review.
+## Package contents
 
-## Technology
+```text
+FIRST30-<verification-code>.zip
+├── FIRST30-response-file.pdf
+├── case.json
+├── manifest.json
+└── evidence/
+    └── original synthetic evidence files
+```
 
-| Layer | Implementation |
-| --- | --- |
-| Application | React 19, TypeScript and Vinext |
-| Runtime | Cloudflare Workers-compatible ESM |
-| Database | D1-compatible SQLite with Drizzle ORM |
-| Evidence storage | R2-compatible object storage |
-| AI | Server-side OpenAI Responses API with deterministic fallback |
-| Local environment | Docker Compose, Wrangler and OrbStack-compatible containers |
-| Validation | Vitest, ESLint and production builds |
+The manifest lists every filename, media type, size and SHA-256 checksum. FIRST30 signs the canonical manifest and stores only its verification record. The verification page hashes the manifest in the browser and sends only its verification code, hash and signature; it never sends or returns citizen facts or evidence.
 
 ## Run with Docker and OrbStack
 
@@ -52,34 +52,20 @@ Requirements:
 - OrbStack or another Docker-compatible runtime
 - Docker Compose
 
-Create the local environment file:
-
 ```bash
 cp .env.example .env
-```
-
-Set `SESSION_SECRET` to a random value containing at least 32 characters. `OPENAI_API_KEY` is optional: the bundled sample remains deterministic without it, and unsupported evidence falls back to manual entry.
-
-Start the development container:
-
-```bash
 docker compose up --build app
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Source changes reload automatically, while local D1 and R2 state persists in named Docker volumes.
+Set `SESSION_SECRET` in `.env` to a random value containing at least 32 characters. Open [http://localhost:3000](http://localhost:3000). Local D1 and R2 state persists in named Docker volumes.
 
-To run the production-style, non-root container:
+Production-style container:
 
 ```bash
 docker compose --profile production up --build app-prod
 ```
 
-## Run directly with Node.js
-
-Requirements:
-
-- Node.js 22.13 or newer
-- npm
+## Run directly
 
 ```bash
 npm ci
@@ -87,53 +73,33 @@ cp .env.example .env
 npm run dev
 ```
 
-The development command forces a fresh Vite dependency bundle on startup to avoid stale dynamically imported modules.
-
 ## Environment variables
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `SESSION_SECRET` | Yes | Signs anonymous 24-hour demo sessions |
-| `OPENAI_API_KEY` | No | Enables extraction for non-bundled synthetic evidence |
-| `OPENAI_MODEL` | No | Overrides the configured OpenAI model |
-| `FIRST30_PORT` | No | Changes the host port used by Docker Compose |
+| `SESSION_SECRET` | Yes | Signs anonymous sessions and response-file manifests |
+| `FIRST30_PORT` | No | Changes the Docker Compose host port |
 
-Never commit `.env` files or real evidence. The repository tracks only `.env.example`, which contains placeholders.
+Never commit `.env` files or real evidence. The repository contains only placeholders and synthetic data.
 
-## Useful commands
+## Validation
 
 ```bash
-npm test          # Run workflow and schema tests
-npm run lint      # Run static analysis
-npm run build     # Create the production Worker build
+npm test
+npm run lint
+npm run build
 ```
 
-Check application and database readiness at [`/api/health`](http://localhost:3000/api/health).
+Application and D1 readiness is available at [`/api/health`](http://localhost:3000/api/health).
 
-## Project structure
+## Privacy and safety
 
-```text
-app/                 Pages and typed API routes
-components/          Bilingual citizen-facing interface
-db/                  D1 schema and database access
-drizzle/             Versioned database migrations
-lib/                 AI, contracts, server and workflow logic
-public/              Public brand assets
-Dockerfile           Development and production image targets
-compose.yaml         Persistent local D1/R2 services
-```
+- Custom images are read locally before upload.
+- Uploads accept PNG, JPEG or WebP images up to 5 MB.
+- Every case, evidence file and export is session-owned.
+- Unknown information remains explicitly unknown; FIRST30 does not invent facts.
+- Editing confirmed data produces a new export version.
+- Verification proves manifest integrity only—not institutional acceptance or recovery.
+- No external bank, government, police, AI or OCR API is called.
 
-## Privacy and safety boundaries
-
-- Anonymous sessions are signed and expire after 24 hours.
-- Cases and evidence are scoped to their owning session.
-- Uploads accept image formats only and are limited to 5 MB.
-- Submission and restoration operations are idempotent.
-- AI output is schema-validated and generated only from citizen-confirmed facts.
-- Evidence is treated as untrusted input; the model receives no tools and storage is disabled.
-- The prototype limits each session to three cases and ten AI operations.
-- Secrets are injected only at runtime and are excluded from Git and container images.
-
-## Status
-
-FIRST30 is a hackathon prototype, not an official reporting or banking service. All post-submission coordination, held-funds states and restoration events are generated by its internal simulation.
+FIRST30 is a hackathon prototype, not an official reporting or banking service.

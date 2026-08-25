@@ -1,2 +1,2 @@
-import { ReportWizard } from '@/components/ReportWizard';
-export default function ReportPage() { return <ReportWizard />; }
+import { ResponseWorkspace } from '@/components/ResponseWorkspace';
+export default function ReportPage() { return <ResponseWorkspace />; }

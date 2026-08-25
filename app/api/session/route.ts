@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({})) as { locale?: string };
     const id = await createSession(body.locale);
-    return json({ active: true, persona: { id: 'sunita', name: 'Sunita Rao', mobile: '•••••• 4210' } }, { headers: { 'set-cookie': await sessionCookie(id) } });
+    return json({ active: true, persona: { id: 'sunita', name: 'Sunita Rao', mobile: '•••••• 4210' } }, { headers: { 'set-cookie': await sessionCookie(id, new URL(request.url).protocol === 'https:') } });
   } catch (error) { return errorResponse(error); }
 }
 

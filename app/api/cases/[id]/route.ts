@@ -5,7 +5,7 @@ import { caseBundle, ensureSchema, errorResponse, json, ownedCase, requireSessio
 const patchSchema = z.object({
   step: z.number().int().min(1).max(5).optional(), locale: z.enum(['en','hi']).optional(),
   fraudType: z.string().max(60).optional(), channel: z.enum(['upi','card','bank_transfer','wallet']).optional(),
-  amount: z.number().int().positive().max(10_000_000).optional(), occurredAt: z.string().max(80).optional(),
+  amount: z.number().int().min(0).max(10_000_000).optional(), occurredAt: z.string().max(80).optional(),
   reference: z.string().max(100).optional(), bank: z.string().max(100).optional(), recipient: z.string().max(160).optional(),
   narrativeInput: z.string().max(2000).optional(), complaintEn: z.string().max(2000).optional(), complaintHi: z.string().max(2400).optional(),
 }).strict();
@@ -22,7 +22,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const columns: Record<string,string> = { step:'step',locale:'locale',fraudType:'fraud_type',channel:'channel',amount:'amount',occurredAt:'occurred_at',reference:'reference',bank:'bank',recipient:'recipient',narrativeInput:'narrative_input',complaintEn:'complaint_en',complaintHi:'complaint_hi' };
     const pairs = Object.entries(body).filter(([,value]) => value !== undefined);
     if (pairs.length) {
-      const sql = `UPDATE cases SET ${pairs.map(([key]) => `${columns[key]} = ?`).join(', ')}, updated_at = ? WHERE id = ? AND session_id = ?`;
+      const sql = `UPDATE cases SET ${pairs.map(([key]) => `${columns[key]} = ?`).join(', ')}, status = 'review_needed', updated_at = ? WHERE id = ? AND session_id = ?`;
       await env.DB.prepare(sql).bind(...pairs.map(([,value]) => value), Date.now(), id, sessionId).run();
     }
     return json(await caseBundle(sessionId, id));

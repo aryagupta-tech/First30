@@ -6,45 +6,10 @@ import { useLocale } from './LocaleProvider';
 
 export function Landing() {
   const { pick } = useLocale();
-  return (
-    <main className="site-shell">
-      <Header />
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">{pick('The first 30 minutes matter', 'पहले 30 मिनट महत्वपूर्ण हैं')}</p>
-          <h1>{pick('Act quickly after financial fraud.', 'वित्तीय धोखाधड़ी के बाद तुरंत कदम उठाएँ।')}</h1>
-          <p className="hero-text">{pick(
-            'FIRST30 helps you organise evidence, report what happened and follow every recovery step in one calm, guided journey.',
-            'FIRST30 आपको प्रमाण व्यवस्थित करने, घटना रिपोर्ट करने और राशि वापसी के हर चरण को एक सरल यात्रा में समझने में मदद करता है।',
-          )}</p>
-          <div className="hero-actions">
-            <Link className="primary-button" href="/report">{pick('Start a demo report', 'डेमो रिपोर्ट शुरू करें')} <span aria-hidden="true">→</span></Link>
-            <Link className="secondary-button" href="/cases">{pick('Track a demo case', 'डेमो केस देखें')}</Link>
-          </div>
-          <p className="synthetic-note">{pick(
-            'Uses a fictional citizen and synthetic financial data. No real account or identity details are required.',
-            'यह काल्पनिक नागरिक और वित्तीय डेटा का उपयोग करता है। वास्तविक खाते या पहचान की जानकारी आवश्यक नहीं है।',
-          )}</p>
-        </div>
-        <aside className="response-card" aria-label={pick('FIRST30 response journey', 'FIRST30 प्रक्रिया')}>
-          <div className="response-card-header"><span className="pulse-dot" />{pick('Guided response', 'मार्गदर्शित प्रक्रिया')}<span className="time-chip">~ 4 min</span></div>
-          <ol className="response-steps">
-            {[
-              [pick('Tell us what happened', 'बताएँ क्या हुआ'), pick('Plain language, no legal jargon', 'सरल भाषा, कानूनी शब्दों के बिना')],
-              [pick('Add synthetic evidence', 'काल्पनिक प्रमाण जोड़ें'), pick('We organise the important details', 'हम महत्वपूर्ण विवरण व्यवस्थित करते हैं')],
-              [pick('Submit and track', 'जमा करें और देखें'), pick('One case, every update in one place', 'हर अपडेट एक ही जगह')],
-              [pick('Follow restoration', 'राशि वापसी देखें'), pick('See what was held and restored', 'देखें कितनी राशि रोकी और वापस की गई')],
-            ].map(([title, detail], index) => <li className={index === 0 ? 'active' : ''} key={title}><span>{index + 1}</span><div><strong>{title}</strong><small>{detail}</small></div></li>)}
-          </ol>
-          <div className="case-preview"><span>{pick('Demo outcome', 'डेमो परिणाम')}</span><strong>{pick('₹12,000 partially restored', '₹12,000 आंशिक रूप से वापस')}</strong></div>
-        </aside>
-      </section>
-      <section className="trust-strip" aria-label="FIRST30 principles">
-        <div><strong>{pick('Simple by design', 'सरल डिज़ाइन')}</strong><span>{pick('One question at a time', 'एक समय में एक प्रश्न')}</span></div>
-        <div><strong>English + हिंदी</strong><span>{pick('Designed for real Indian users', 'भारतीय उपयोगकर्ताओं के लिए')}</span></div>
-        <div><strong>{pick('Private by default', 'गोपनीयता पहले')}</strong><span>{pick('Synthetic demo data only', 'केवल काल्पनिक डेमो डेटा')}</span></div>
-      </section>
-      <SafetyFooter />
-    </main>
-  );
+  return <main className="site-shell"><Header /><section className="response-hero"><div className="response-hero-copy"><p className="eyebrow">{pick('From scattered proof to one usable file', 'बिखरे प्रमाण से एक उपयोगी फ़ाइल तक')}</p><h1>{pick('Explain the fraud once. Use the file everywhere.', 'फ्रॉड एक बार बताएँ। फ़ाइल हर जगह उपयोग करें।')}</h1><p>{pick('FIRST30 turns synthetic receipts, confirmed facts and the citizen’s own words into a bilingual, checksum-verified response package—without pretending it recovered the money.', 'FIRST30 काल्पनिक रसीद, पुष्ट तथ्य और नागरिक के अपने शब्दों को द्विभाषी, चेकसम-सत्यापित रिस्पॉन्स पैकेज में बदलता है—राशि वापसी का झूठा दावा किए बिना।')}</p><div className="hero-actions"><Link className="primary-button" href="/report">{pick('Build a response file', 'रिस्पॉन्स फ़ाइल बनाएँ')} →</Link><Link className="secondary-button" href="/verify">{pick('Verify a manifest', 'मैनिफेस्ट सत्यापित करें')}</Link></div><small>{pick('Synthetic prototype · no real identity or account details required', 'काल्पनिक प्रोटोटाइप · वास्तविक पहचान या खाते की जानकारी आवश्यक नहीं')}</small></div><aside className="package-preview" aria-label={pick('Response package contents', 'रिस्पॉन्स पैकेज सामग्री')}><div className="package-sheet"><div className="sheet-brand"><span>30</span><strong>FIRST30 RESPONSE FILE</strong></div><h2>₹18,499</h2><p>UPI · UTR826194730521</p><div className="sheet-checks"><span>✓ {pick('Evidence checksummed', 'प्रमाण चेकसम')}</span><span>✓ {pick('Chronology prepared', 'समयरेखा तैयार')}</span><span>✓ {pick('English + हिंदी complaint', 'English + हिंदी शिकायत')}</span></div><div className="sheet-files"><span>PDF</span><span>JSON</span><span>SHA-256</span><span>ZIP</span></div></div><div className="package-seal"><span>✓</span><strong>{pick('Verifiable output', 'सत्यापन योग्य आउटपुट')}</strong><small>{pick('Not a simulated outcome', 'काल्पनिक परिणाम नहीं')}</small></div></aside></section><section className="real-value-section"><div><p className="eyebrow">{pick('What FIRST30 actually does', 'FIRST30 वास्तव में क्या करता है')}</p><h2>{pick('Every visible result is produced by the product.', 'हर दिखने वाला परिणाम उत्पाद स्वयं बनाता है।')}</h2></div><div className="value-grid">{[
+    [pick('Reads locally', 'स्थानीय रूप से पढ़ता है'), pick('Receipt facts are processed in the browser and remain editable.', 'रसीद के तथ्य ब्राउज़र में पढ़े जाते हैं और बदले जा सकते हैं।')],
+    [pick('Finds gaps', 'कमियाँ खोजता है'), pick('Missing, conflicting and duplicate evidence is surfaced before export.', 'निर्यात से पहले गायब, विरोधी और डुप्लिकेट प्रमाण दिखाए जाते हैं।')],
+    [pick('Preserves integrity', 'अखंडता सुरक्षित करता है'), pick('Every original gets a SHA-256 checksum and signed manifest.', 'हर मूल फ़ाइल को SHA-256 चेकसम और हस्ताक्षरित मैनिफेस्ट मिलता है।')],
+    [pick('Creates usable documents', 'उपयोगी दस्तावेज़ बनाता है'), pick('Download a bilingual PDF, case JSON, originals and verification manifest.', 'द्विभाषी PDF, केस JSON, मूल फ़ाइलें और सत्यापन मैनिफेस्ट डाउनलोड करें।')],
+  ].map(([title, body], index) => <article key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{body}</p></article>)}</div></section><section className="honest-boundary"><div><strong>{pick('FIRST30 owns', 'FIRST30 करता है')}</strong><p>{pick('Evidence preparation, integrity checks, chronology, documents and verification.', 'प्रमाण तैयारी, अखंडता जाँच, समयरेखा, दस्तावेज़ और सत्यापन।')}</p></div><i aria-hidden="true">→</i><div><strong>{pick('The citizen records', 'नागरिक दर्ज करता है')}</strong><p>{pick('Real bank, 1930 and cybercrime acknowledgement numbers received afterward.', 'बाद में मिले वास्तविक बैंक, 1930 और साइबर क्राइम पावती नंबर।')}</p></div><i aria-hidden="true">→</i><div><strong>{pick('FIRST30 never claims', 'FIRST30 दावा नहीं करता')}</strong><p>{pick('That a report was submitted, funds were frozen or money was recovered.', 'कि रिपोर्ट जमा हुई, राशि रोकी गई या पैसा वापस आया।')}</p></div></section><SafetyFooter /></main>;
 }

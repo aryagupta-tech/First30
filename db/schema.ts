@@ -56,3 +56,49 @@ export const restorations = sqliteTable('restorations', {
   amount: integer('amount').notNull(), status: text('status').notNull().default('available'),
   confirmedAt: integer('confirmed_at'), completedAt: integer('completed_at'),
 }, (table) => [uniqueIndex('idx_restorations_case').on(table.caseId)]);
+
+export const evidenceIntegrity = sqliteTable('evidence_integrity', {
+  evidenceId: text('evidence_id').primaryKey().references(() => evidence.id, { onDelete: 'cascade' }),
+  sha256: text('sha256').notNull(),
+  ocrText: text('ocr_text'),
+  extractionJson: text('extraction_json'),
+  confirmedAt: integer('confirmed_at'),
+}, (table) => [uniqueIndex('idx_evidence_integrity_sha').on(table.sha256, table.evidenceId)]);
+
+export const incidentEvents = sqliteTable('incident_events', {
+  id: text('id').primaryKey(),
+  caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  occurredAt: text('occurred_at').notNull(),
+  eventType: text('event_type').notNull(),
+  descriptionEn: text('description_en').notNull(),
+  descriptionHi: text('description_hi').notNull().default(''),
+  source: text('source').notNull().default('citizen'),
+  position: integer('position').notNull().default(0),
+}, (table) => [index('idx_incident_events_case_position').on(table.caseId, table.position)]);
+
+export const milestones = sqliteTable('milestones', {
+  id: text('id').primaryKey(),
+  caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  reference: text('reference').notNull().default(''),
+  notes: text('notes').notNull().default(''),
+  occurredAt: text('occurred_at').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (table) => [index('idx_milestones_case_created').on(table.caseId, table.createdAt)]);
+
+export const caseExports = sqliteTable('case_exports', {
+  id: text('id').primaryKey(),
+  caseId: text('case_id').notNull().references(() => cases.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  verificationCode: text('verification_code').notNull(),
+  contentFingerprint: text('content_fingerprint').notNull(),
+  manifestHash: text('manifest_hash').notNull(),
+  signature: text('signature').notNull(),
+  manifestJson: text('manifest_json').notNull(),
+  fileCount: integer('file_count').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (table) => [
+  uniqueIndex('idx_case_exports_verification_code').on(table.verificationCode),
+  uniqueIndex('idx_case_exports_case_fingerprint').on(table.caseId, table.contentFingerprint),
+  index('idx_case_exports_case_version').on(table.caseId, table.version),
+]);

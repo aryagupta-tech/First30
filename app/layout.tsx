@@ -12,9 +12,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase,
     title: 'FIRST30 — The first 30 minutes matter',
-    description: 'A guided financial cyber-fraud reporting and recovery prototype built with synthetic data.',
-    openGraph: { title: 'FIRST30', description: 'The first 30 minutes matter.', images: ['/og.png'] },
-    twitter: { card: 'summary_large_image', title: 'FIRST30', description: 'The first 30 minutes matter.', images: ['/og.png'] },
+    description: 'Turn scattered fraud evidence into one complete, verifiable response file.',
+    openGraph: { title: 'FIRST30', description: 'Explain the fraud once. Use the file everywhere.', images: ['/og.png'] },
+    twitter: { card: 'summary_large_image', title: 'FIRST30', description: 'Explain the fraud once. Use the file everywhere.', images: ['/og.png'] },
   };
 }
 
