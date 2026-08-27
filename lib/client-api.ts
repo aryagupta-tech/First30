@@ -34,9 +34,11 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
     await new Promise((resolve) => setTimeout(resolve, 450));
     try { response = await fetch(url, requestInit); } catch (retryError) { emit('offline'); throw retryError; }
   }
-  const data = await response.json() as T & ApiErrorBody & { meta?: { caseRevision?: number } } & { case?: { revision?: number } };
+  const data = await response.json() as T & ApiErrorBody & { meta?: { caseRevision?: number } } & { case?: { id?: string; revision?: number } } & { bundle?: { case?: { id?: string; revision?: number }; meta?: { caseRevision?: number } } };
   const revision = Number(data.meta?.caseRevision || data.case?.revision || 0);
-  if (caseId && revision > 0) revisions.set(caseId, revision);
+  const responseCaseId = caseId || String(data.case?.id || data.bundle?.case?.id || '');
+  const responseRevision = revision || Number(data.bundle?.meta?.caseRevision || data.bundle?.case?.revision || 0);
+  if (responseCaseId && responseRevision > 0) revisions.set(responseCaseId, responseRevision);
   if (!response.ok) {
     if (caseId && data.code === 'CASE_CHANGED') {
       try {

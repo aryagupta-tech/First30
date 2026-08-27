@@ -58,9 +58,44 @@ export function FinancialFraudJourney({ caseId: suppliedCaseId }: { caseId?: str
   useEffect(() => onSaveState((next) => { setSaveState(next); if (next === 'saved') setLastSavedAt(Date.now()); }), []);
   useEffect(() => () => { if (preparedPassportUrl.current) URL.revokeObjectURL(preparedPassportUrl.current); }, []);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
-  useEffect(() => { if (started.current) return; started.current = true; void api<{active:boolean;csrfToken?:string}>('/api/session').then(async (value) => { setSessionSecurity(value.csrfToken); setSession(value.active); if (!value.active) return; await openCase(); }).catch(() => setSession(false)); return () => { void stopLocalOcr(); }; async function openCase() { if (suppliedCaseId) { setCaseId(suppliedCaseId); await refresh(suppliedCaseId); return; } const stored = localStorage.getItem('f30_active_case'); if (stored) { try { setCaseId(stored); await refresh(stored); return; } catch { localStorage.removeItem('f30_active_case'); } } const created = await api<{id:string}>('/api/cases',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}); setCaseId(created.id); localStorage.setItem('f30_active_case',created.id); await refresh(created.id); } }, [refresh, suppliedCaseId]);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
 
-  async function signIn() { setBusy('login'); setError(''); try { const signed=await api<{csrfToken?:string}>('/api/session',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(login)}); setSessionSecurity(signed.csrfToken); setSession(true); const created=await api<{id:string}>('/api/cases',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}); setCaseId(created.id); localStorage.setItem('f30_active_case',created.id); await refresh(created.id); } catch (caught) { setError(message(caught)); } finally { setBusy(''); } }
+    void prepare();
+    return () => { void stopLocalOcr(); };
+
+    async function prepare() {
+      try {
+        const startFresh = !suppliedCaseId && new URLSearchParams(window.location.search).get('new') === '1';
+        if (startFresh) {
+          const signed = await api<{active:boolean;csrfToken?:string;caseId:string;bundle:Bundle}>('/api/session', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ mobile: '90000 00000', otp: '123456', startReport: true }),
+          });
+          setSessionSecurity(signed.csrfToken); setSession(true); setCaseId(signed.caseId);
+          localStorage.setItem('f30_active_case', signed.caseId); history.replaceState(null, '', '/report'); applyBundle(signed.bundle);
+          return;
+        }
+        const value = await api<{active:boolean;csrfToken?:string}>('/api/session');
+        setSessionSecurity(value.csrfToken); setSession(value.active);
+        if (value.active) await openCase();
+      } catch { setSession(false); }
+    }
+
+    async function openCase() {
+      if (suppliedCaseId) { setCaseId(suppliedCaseId); await refresh(suppliedCaseId); return; }
+      const stored = localStorage.getItem('f30_active_case');
+      if (stored) {
+        try { setCaseId(stored); await refresh(stored); return; }
+        catch { localStorage.removeItem('f30_active_case'); }
+      }
+      const created = await api<{id:string}>('/api/cases', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      setCaseId(created.id); localStorage.setItem('f30_active_case', created.id); await refresh(created.id);
+    }
+  }, [applyBundle, refresh, suppliedCaseId]);
+
+  async function signIn() { setBusy('login'); setError(''); try { const signed=await api<{csrfToken?:string;caseId:string;bundle:Bundle}>('/api/session',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...login,startReport:true})}); setSessionSecurity(signed.csrfToken); setSession(true); setCaseId(signed.caseId); localStorage.setItem('f30_active_case',signed.caseId); applyBundle(signed.bundle); } catch (caught) { setError(message(caught)); } finally { setBusy(''); } }
   async function saveIntake() { setBusy('intake'); setError(''); try { const next=await api<Bundle>(`/api/cases/${caseId}/intake`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(intake)}); applyBundle(next); setStage(3); } catch(caught){setError(message(caught));} finally{setBusy('');} }
 
   async function uploadEvidence(file: File, kind: EvidenceKind, sample = false, autoConfirm = false, safeDataConfirmed = sample) {
@@ -197,7 +232,7 @@ function Tracking({bundle,busy,error,preparedPassport,buildPassport,answerReques
 
   return <main className="site-shell"><Header compact/><section className="tracking-page">
     {error&&<div className="error-banner workspace-error" role="alert"><strong>{pick('This action could not be completed','यह कार्रवाई पूरी नहीं हो सकी')}</strong><span>{error}</span></div>}
-    <header><p className="eyebrow">{pick('Track your demo report','अपनी डेमो रिपोर्ट देखें')}</p><span className="mock-badge">DEMO</span><h1>{simpleStatus}</h1><p>{pick('This reference number works only inside this FIRST30 demonstration. It is not an NCRP or police complaint number.','यह संदर्भ नंबर केवल इस FIRST30 डेमो में काम करता है। यह NCRP या पुलिस शिकायत नंबर नहीं है।')}</p><code>{String(bundle.submission?.acknowledgement)}</code><details className="term-help"><summary>{pick('What does this number mean?','इस नंबर का क्या मतलब है?')}</summary><p>{pick('Use it to recognise this saved demo report inside FIRST30. For a real incident, use the number given by the bank, 1930 or the official reporting service.','FIRST30 में इस सहेजी डेमो रिपोर्ट को पहचानने के लिए इसका उपयोग करें। वास्तविक घटना में बैंक, 1930 या आधिकारिक रिपोर्टिंग सेवा से मिला नंबर उपयोग करें।')}</p></details></header>
+    <header><p className="eyebrow">{pick('Track your demo report','अपनी डेमो रिपोर्ट देखें')}</p><h1>{simpleStatus}</h1><p>{pick('This reference number works only inside this FIRST30 demonstration. It is not an NCRP or police complaint number.','यह संदर्भ नंबर केवल इस FIRST30 डेमो में काम करता है। यह NCRP या पुलिस शिकायत नंबर नहीं है।')}</p><code>{String(bundle.submission?.acknowledgement)}</code><details className="term-help"><summary>{pick('What does this number mean?','इस नंबर का क्या मतलब है?')}</summary><p>{pick('Use it to recognise this saved demo report inside FIRST30. For a real incident, use the number given by the bank, 1930 or the official reporting service.','FIRST30 में इस सहेजी डेमो रिपोर्ट को पहचानने के लिए इसका उपयोग करें। वास्तविक घटना में बैंक, 1930 या आधिकारिक रिपोर्टिंग सेवा से मिला नंबर उपयोग करें।')}</p></details></header>
     <div className="tracking-grid"><section className="status-timeline"><h2>{pick('Your report progress','आपकी रिपोर्ट की प्रगति')}</h2>{bundle.events.map((event,index)=>{const copy=friendlyEvent(event,pick);return <article key={String(event.id)}><span>{index+1}</span><div><strong>{copy.title}</strong><p>{copy.detail}</p><time>{new Date(Number(event.created_at)).toLocaleString(locale==='hi'?'hi-IN':'en-IN')}</time></div></article>})}</section>
       <aside><div className="tracking-status"><span>{open?'!':'✓'}</span><strong>{open?pick('One more document is needed','एक और दस्तावेज़ चाहिए'):pick('The extra document was added','अतिरिक्त दस्तावेज़ जोड़ दिया गया')}</strong><p>{open?pick('Add a safe test bank statement showing the reported payment.','दर्ज भुगतान दिखाने वाला सुरक्षित परीक्षण बैंक स्टेटमेंट जोड़ें।'):pick('You have completed this demo follow-up.','आपने यह डेमो अगला कदम पूरा कर लिया है।')}</p>{open&&<div className="followup-choices"><button className="primary-button" disabled={Boolean(busy)} onClick={()=>void answerRequest()}>{busy==='followup'?pick('Reading the statement…','स्टेटमेंट पढ़ा जा रहा है…'):pick('Use prepared statement','तैयार स्टेटमेंट उपयोग करें')} →</button><label className="followup-safe-check"><input type="checkbox" checked={safeFollowup} onChange={(event)=>setSafeFollowup(event.target.checked)}/><span>{pick('My file is fictional or fully redacted','मेरी फ़ाइल काल्पनिक या पूरी तरह छिपाई गई है')}</span></label><label className={`secondary-button followup-upload ${!safeFollowup?'disabled':''}`}>{pick('Choose my test statement','अपना परीक्षण स्टेटमेंट चुनें')}<input type="file" disabled={!safeFollowup||Boolean(busy)} accept="image/png,image/jpeg,image/webp" onChange={(event)=>{const file=event.target.files?.[0];if(file)void answerRequest(file,true);event.target.value='';}}/></label></div>}</div>
         {processing?.status !== 'complete' && <button className="secondary-button process-retry" disabled={Boolean(busy)} onClick={()=>void retryProcessing()}>{busy==='process'?pick('Trying again safely…','सुरक्षित रूप से फिर प्रयास…'):pick('Continue preparing my report','मेरी रिपोर्ट तैयार करना जारी रखें')}</button>}

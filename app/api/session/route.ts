@@ -1,4 +1,4 @@
-import { createSession, deleteSession, ensureSchema, errorResponse, getSessionId, json, sessionCookie } from '@/lib/server';
+import { caseBundle, createSession, createSessionWithCase, deleteSession, ensureSchema, errorResponse, getSessionId, json, sessionCookie } from '@/lib/server';
 import { demoLoginSchema } from '@/lib/contracts';
 import { csrfToken, enforceRateLimit } from '@/lib/reliability';
 import { env } from 'cloudflare:workers';
@@ -11,8 +11,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await ensureSchema(); await enforceRateLimit(request, 'demo_login', 12, 10 * 60 * 1000);
-    const body = demoLoginSchema.safeParse(await request.json().catch(() => ({})));
+    const input = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const body = demoLoginSchema.safeParse(input);
     if (!body.success) return json({ error: 'Use the sample mobile number and demo OTP shown on this page.' }, { status: 400 });
+    if (input.startReport === true) {
+      const started = await createSessionWithCase();
+      const bundle = await caseBundle(started.sessionId, started.caseId);
+      return json({ active: true, persona: { id: 'sunita', name: 'Sunita Sharma', mobile: '90000 00000' }, csrfToken: await csrfToken(started.sessionId), expiresAt: started.expiresAt, caseId: started.caseId, bundle }, { headers: { 'set-cookie': await sessionCookie(started.sessionId, new URL(request.url).protocol === 'https:') } });
+    }
     const id = await createSession();
     return json({ active: true, persona: { id: 'sunita', name: 'Sunita Sharma', mobile: '90000 00000' }, csrfToken: await csrfToken(id), expiresAt: Date.now() + 24 * 60 * 60 * 1000 }, { headers: { 'set-cookie': await sessionCookie(id, new URL(request.url).protocol === 'https:') } });
   } catch (error) { return errorResponse(error); }

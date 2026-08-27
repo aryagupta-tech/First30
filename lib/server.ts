@@ -166,6 +166,18 @@ export async function createSession() {
   return id;
 }
 
+export async function createSessionWithCase() {
+  await ensureSchema();
+  const sessionId = crypto.randomUUID(); const caseId = crypto.randomUUID(); const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO demo_sessions (id, persona_id, locale, ai_calls, created_at, expires_at) VALUES (?, ?, ?, 0, ?, ?)')
+      .bind(sessionId, 'sunita', 'en', now, now + DAY),
+    env.DB.prepare("INSERT INTO cases (id, session_id, locale, status, step, fraud_type, channel, amount, created_at, updated_at) VALUES (?, ?, 'en', 'draft', 1, 'fake_kyc', 'upi', 0, ?, ?)")
+      .bind(caseId, sessionId, now, now),
+  ]);
+  return { sessionId, caseId, expiresAt: now + DAY };
+}
+
 const childTables = ['evidence_storage', 'evidence_analysis', 'evidence_observations', 'evidence_integrity', 'fact_resolutions', 'passport_findings', 'custody_events', 'incident_events', 'milestones', 'case_exports', 'information_request_responses', 'outbox_jobs', 'workflow_runs', 'audit_events', 'complaint_submissions', 'secure_profiles', 'complainant_profiles', 'case_intake', 'evidence', 'case_events', 'information_requests', 'restorations', 'transactions', 'suspects'];
 const evidenceChildTables = new Set(['evidence_storage', 'evidence_integrity', 'evidence_analysis']);
 

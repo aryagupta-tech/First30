@@ -7,8 +7,8 @@ export function Header({ compact = false }: { compact?: boolean }) {
   const { pick } = useLocale();
   return <header className={`topbar ${compact ? 'topbar-compact' : ''}`}>
     <NativeLink className="brand" href="/" aria-label="FIRST30 home"><span className="brand-mark">30</span><span>FIRST30</span></NativeLink>
-    <nav className="topbar-nav" aria-label={pick('Main menu', 'मुख्य मेनू')}><NativeLink href="/report">{pick('Start report', 'रिपोर्ट शुरू करें')}</NativeLink><NativeLink href="/cases">{pick('My reports', 'मेरी रिपोर्ट')}</NativeLink><NativeLink href="/verify">{pick('Check a report', 'रिपोर्ट जाँचें')}</NativeLink></nav>
-    <div className="topbar-actions"><span className="prototype-pill"><i /> {pick('Independent prototype')}</span>{!compact && <NativeLink className="header-cta" href="/report">{pick('Start report')} <span>↗</span></NativeLink>}</div>
+    <nav className="topbar-nav" aria-label={pick('Main menu', 'मुख्य मेनू')}><NativeLink href="/report?new=1">{pick('Start report', 'रिपोर्ट शुरू करें')}</NativeLink><NativeLink href="/cases">{pick('My reports', 'मेरी रिपोर्ट')}</NativeLink><NativeLink href="/verify">{pick('Check a report', 'रिपोर्ट जाँचें')}</NativeLink></nav>
+    <div className="topbar-actions"><span className="prototype-pill"><i /> {pick('Independent prototype')}</span>{!compact && <NativeLink className="header-cta" href="/report?new=1">{pick('Start report')} <span>↗</span></NativeLink>}</div>
   </header>;
 }
 
