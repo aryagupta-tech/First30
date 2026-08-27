@@ -666,7 +666,7 @@ body { color: var(--editorial-ink); background: var(--editorial-ivory); }
 .brand { color: var(--editorial-ink); font-size: 14px; letter-spacing: .08em; }
 .brand-mark { width: 34px; height: 34px; color: white; background: var(--editorial-navy); border-radius: 50%; box-shadow: none; }
 .topbar-nav { gap: 30px; }
-.topbar-nav a { color: #4f5860; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+.topbar-nav a { min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px; color: #4f5860; border-radius: 4px; cursor: pointer; font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
 .topbar-nav a:hover { color: var(--editorial-coral); }
 .prototype-pill { color: #59646a; background: rgba(255,255,255,.45); border-color: var(--editorial-line); }
 .prototype-pill i { background: var(--editorial-coral); box-shadow: none; }

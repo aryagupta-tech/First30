@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { Header, SafetyFooter } from './Header';
+import { NativeLink } from './NativeLink';
 import { useLocale } from './LocaleProvider';
 import { downloadDemoEvidenceKit } from '@/lib/client-ocr';
 
@@ -59,7 +59,7 @@ export function Landing() {
         <h1>{pick('Your evidence.', 'आपका प्रमाण।')}<br /><em>{pick('Ready for action.', 'कार्रवाई के लिए तैयार।')}</em></h1>
         <p>{pick('Add your screenshots once. FIRST30 reads them privately, checks important details and prepares one clear English complaint.')}</p>
         <div className="editorial-actions">
-          <Link className="editorial-primary" href="/report">{pick('Start a report', 'रिपोर्ट शुरू करें')} <span>↗</span></Link>
+          <NativeLink className="editorial-primary" href="/report">{pick('Start a report', 'रिपोर्ट शुरू करें')} <span>↗</span></NativeLink>
           <button className="editorial-link download-demo-link" type="button" onClick={() => void downloadDemoEvidenceKit()}>{pick('Download safe demo files', 'सुरक्षित डेमो फ़ाइलें डाउनलोड करें')} <span>↓</span></button>
         </div>
         <div className="editorial-case-chip"><span className="avatar-dot">SS</span><div><small>{pick('Sample person for this demo', 'इस डेमो की नमूना व्यक्ति')}</small><strong>Sunita Sharma · ₹18,499</strong></div><i>{pick('Resume', 'जारी रखें')} →</i></div>
@@ -91,7 +91,7 @@ export function Landing() {
 
     <section className="routine-section section-pad"><div className="routine-heading" data-reveal><p className="editorial-kicker">{pick('Less routine work', 'कम दोहराव वाला काम')}</p><h2>{pick('A reporting journey people can finish.', 'एक रिपोर्टिंग यात्रा जिसे लोग पूरा कर सकें।')}</h2></div><ol className="editorial-journey">{journey.map(([number,title,body],index)=><li key={number} data-reveal style={{'--delay':`${index*65}ms`} as CSSProperties}><span>{number}</span><strong>{title}</strong><p>{body}</p></li>)}</ol></section>
 
-    <section className="editorial-final" data-reveal><div><p className="editorial-kicker">{pick('Independent demonstration', 'स्वतंत्र डेमो')}</p><h2>{pick('Use the sample case or bring your own safe test screenshots.', 'नमूना केस उपयोग करें या अपने सुरक्षित परीक्षण स्क्रीनशॉट जोड़ें।')}</h2><p>{pick('Custom fictional or fully redacted images work end to end. Never upload real IDs, account numbers, OTPs or private evidence to this public hackathon demo.', 'काल्पनिक या पूरी तरह छिपाई गई अपनी तस्वीरें शुरू से अंत तक काम करती हैं। इस सार्वजनिक हैकाथॉन डेमो में असली ID, खाता नंबर, OTP या निजी प्रमाण कभी अपलोड न करें।')}</p></div><Link className="editorial-primary" href="/report">{pick('Start a report', 'रिपोर्ट शुरू करें')} <span>↗</span></Link></section>
+    <section className="editorial-final" data-reveal><div><p className="editorial-kicker">{pick('Independent demonstration', 'स्वतंत्र डेमो')}</p><h2>{pick('Use the sample case or bring your own safe test screenshots.', 'नमूना केस उपयोग करें या अपने सुरक्षित परीक्षण स्क्रीनशॉट जोड़ें।')}</h2><p>{pick('Custom fictional or fully redacted images work end to end. Never upload real IDs, account numbers, OTPs or private evidence to this public hackathon demo.', 'काल्पनिक या पूरी तरह छिपाई गई अपनी तस्वीरें शुरू से अंत तक काम करती हैं। इस सार्वजनिक हैकाथॉन डेमो में असली ID, खाता नंबर, OTP या निजी प्रमाण कभी अपलोड न करें।')}</p></div><NativeLink className="editorial-primary" href="/report">{pick('Start a report', 'रिपोर्ट शुरू करें')} <span>↗</span></NativeLink></section>
     <SafetyFooter />
   </main>;
 }
