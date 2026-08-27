@@ -11,13 +11,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci \
+  && sha256sum package-lock.json | cut -d ' ' -f 1 > node_modules/.first30-package-lock.sha256
 
 FROM deps AS dev
 ENV NODE_ENV=development
 COPY . .
 EXPOSE 3000
-CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"]
+CMD ["/bin/sh", "/app/docker-dev-entrypoint.sh"]
 
 FROM deps AS builder
 ENV NODE_ENV=production

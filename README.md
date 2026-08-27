@@ -99,7 +99,7 @@ Or with Docker and OrbStack:
 docker compose up --build app
 ```
 
-Open [http://localhost:3000](http://localhost:3000). D1 and R2 development state persists in named volumes.
+Open [http://localhost:3000](http://localhost:3000). D1 and R2 development state persists in named volumes. The development container automatically synchronizes its dependency volume when `package-lock.json` changes, so rebuilding does not require deleting saved D1/R2 data.
 
 Production-style container:
 
