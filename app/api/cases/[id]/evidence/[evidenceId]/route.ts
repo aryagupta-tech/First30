@@ -5,9 +5,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     await ensureSchema(); const sessionId = await requireSession(request); const { id, evidenceId } = await context.params;
     const row = await ownedEvidence(sessionId, id, evidenceId);
-    if (!row.object_key) return json({ error: 'Evidence bytes are unavailable.' }, { status: 404 });
+    if (!row.object_key) return json({ error: 'This screenshot is unavailable. Please add it again.' }, { status: 404 });
     const object = await env.FILES.get(String(row.object_key));
-    if (!object) return json({ error: 'Evidence bytes are unavailable.' }, { status: 404 });
+    if (!object) return json({ error: 'This screenshot is unavailable. Please add it again.' }, { status: 404 });
     return new Response(object.body, { headers: { 'content-type': String(row.mime_type), 'content-length': String(row.size), 'cache-control': 'private, no-store', 'content-disposition': `inline; filename="${String(row.filename).replace(/["\r\n]/g, '')}"` } });
   } catch (error) { return errorResponse(error); }
 }

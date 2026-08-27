@@ -9,7 +9,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const caseRow = await ownedCase(sessionId, id); const revision = assertCaseRevision(request, caseRow);
     const evidence = await ownedEvidence(sessionId, id, evidenceId);
     const analysis = evidenceAnalysisSchema.parse(await request.json());
-    if (analysis.clientSha256 !== evidence.sha256) return json({ error: 'The locally analysed image does not match the stored evidence.' }, { status: 409 });
+    if (analysis.clientSha256 !== evidence.sha256) return json({ error: 'The screenshot changed while it was being checked. Please remove it and add it again.' }, { status: 409 });
     const now = Date.now();
     const observationStatements = analysis.observations.map((item) => env.DB.prepare('INSERT INTO evidence_observations (id, case_id, evidence_id, field, value, normalized_value, source_text, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .bind(crypto.randomUUID(), id, evidenceId, item.field, item.value, item.normalizedValue, item.sourceText, Math.round(item.confidence * 1000), now));

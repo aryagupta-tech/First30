@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const operation = await beginIdempotency(request, sessionId, 'case:create', body);
     if (operation.replay && operation.response?.id) return json(operation.response);
     const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM cases WHERE session_id = ?').bind(sessionId).first<{ total: number }>();
-    if ((count?.total || 0) >= 3) return json({ error: 'This demo session already has three cases.' }, { status: 429 });
+    if ((count?.total || 0) >= 3) return json({ error: 'You already have three demo reports. Open an existing report to continue.' }, { status: 429 });
     const id = crypto.randomUUID();
     const now = Date.now();
     await env.DB.prepare("INSERT INTO cases (id, session_id, locale, status, step, fraud_type, channel, amount, created_at, updated_at) VALUES (?, ?, ?, 'draft', 1, 'fake_kyc', 'upi', 0, ?, ?)")

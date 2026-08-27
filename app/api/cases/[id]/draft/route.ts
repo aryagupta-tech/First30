@@ -6,7 +6,7 @@ import { appendAudit, assertCaseRevision, requestId } from '@/lib/reliability';
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await ensureSchema(); const sessionId = await requireSession(request); const { id } = await context.params; const caseRow = await ownedCase(sessionId, id); const revision = assertCaseRevision(request, caseRow);
-    if (caseRow.submitted_at) return json({ error: 'The submitted snapshot is immutable. Start a new synthetic report to change complaint details.' }, { status: 409 });
+    if (caseRow.submitted_at) return json({ error: 'This demo report is already finished and cannot be edited. Start a new report to change what happened.' }, { status: 409 });
     const body = await request.json() as { narrative?: string };
     if (!body.narrative || body.narrative.trim().length < 30) return json({ error: 'Describe what happened in at least 30 characters.' }, { status: 400 });
     const result = buildComplaint({ amount: caseRow.amount, occurredAt: caseRow.occurred_at, reference: caseRow.reference, channel: caseRow.channel, bank: caseRow.bank, recipient: caseRow.recipient, narrative: body.narrative.trim() });

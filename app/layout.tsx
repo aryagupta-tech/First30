@@ -12,8 +12,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase,
     title: 'FIRST30 — Your evidence. Ready for action.',
-    description: 'An editorial, citizen-first reimagining of financial cyber-fraud reporting with private local evidence analysis, source-linked facts and one continuous journey.',
-    openGraph: { title: 'FIRST30 — Your evidence. Ready for action.', description: 'Financial cyber-fraud reporting, reimagined around urgent guidance, source-linked evidence and one clear complaint.', images: ['/og.png'] },
+    description: 'A simple, guided way to organise financial cyber-fraud screenshots, check important details and prepare one clear complaint.',
+    openGraph: { title: 'FIRST30 — Your evidence. Ready for action.', description: 'Add screenshots once, check the important details and prepare one clear complaint in English and Hindi.', images: ['/og.png'] },
     twitter: { card: 'summary_large_image', title: 'FIRST30 — Your evidence. Ready for action.', description: 'Financial cyber-fraud reporting, reimagined.', images: ['/og.png'] },
   };
 }

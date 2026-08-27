@@ -13,9 +13,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const caseRow = await ownedCase(sessionId, id); assertCaseRevision(request, caseRow);
     assertTransition(String(caseRow.status), 'evidence_received');
     const infoRequest = await env.DB.prepare("SELECT * FROM information_requests WHERE id = ? AND case_id = ? AND status = 'open'").bind(requestId, id).first<Record<string, unknown>>();
-    if (!infoRequest) return json({ error: 'This evidence request is not open.' }, { status: 404 });
+    if (!infoRequest) return json({ error: 'This request is already complete or is no longer available.' }, { status: 404 });
     const evidence = await ownedEvidence(sessionId, id, value.evidenceId);
-    if (evidence.kind !== 'bank_statement' || evidence.analysis_status !== 'confirmed') return json({ error: 'Confirm a synthetic bank statement before responding.' }, { status: 409 });
+    if (evidence.kind !== 'bank_statement' || evidence.analysis_status !== 'confirmed') return json({ error: 'Add and check the sample bank statement before continuing.' }, { status: 409 });
     const existing = await env.DB.prepare('SELECT id FROM information_request_responses WHERE request_id = ?').bind(requestId).first();
     if (existing) return json(await caseBundle(sessionId, id));
     const now = Date.now();
@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       env.DB.prepare("UPDATE complaint_submissions SET status = 'evidence_received', updated_at = ? WHERE case_id = ?").bind(now, id),
       env.DB.prepare("UPDATE cases SET status = 'evidence_received', revision = revision + 1, updated_at = ? WHERE id = ? AND session_id = ?").bind(now, id, sessionId),
     ]);
-    await addEvent(id, 'evidence_received', 'Additional evidence received · Mock', 'अतिरिक्त प्रमाण प्राप्त · मॉक', 'The synthetic bank statement was attached to the mock complaint.', 'काल्पनिक बैंक स्टेटमेंट मॉक शिकायत से जोड़ा गया।', now);
+    await addEvent(id, 'evidence_received', 'Extra document added · Demo', 'अतिरिक्त दस्तावेज़ जोड़ा गया · डेमो', 'The sample bank statement was added to this FIRST30 demo report.', 'नमूना बैंक स्टेटमेंट इस FIRST30 डेमो रिपोर्ट में जोड़ा गया।', now);
     await finishIdempotency(sessionId, `request-response:${requestId}`, operation.key, { caseId: id, completed: true });
     await appendAudit(id, 'citizen', 'follow_up_evidence_supplied', correlationId(request), { requestId, evidenceId: value.evidenceId });
     return json(await caseBundle(sessionId, id));

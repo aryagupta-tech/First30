@@ -14,14 +14,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const declaredSize = Number(request.headers.get('content-length') || 0);
     if (declaredSize > 6 * 1024 * 1024) return json({ error: 'This upload is too large. Choose an image under 5 MB.', code: 'UPLOAD_TOO_LARGE', requestId: requestId(request), retryable: false }, { status: 413 });
     const form = await request.formData(); const synthetic = form.get('synthetic') === 'true';
-    if (!synthetic) return json({ error: 'Confirm that the evidence is synthetic demo data.' }, { status: 400 });
+    if (!synthetic) return json({ error: 'This demonstration accepts only sample images.' }, { status: 400 });
     const file = form.get('file');
-    if (!(file instanceof File)) return json({ error: 'Choose a synthetic evidence image.' }, { status: 400 });
+    if (!(file instanceof File)) return json({ error: 'Choose a sample screenshot.' }, { status: 400 });
     if (!allowed.has(file.type) || file.size > 5 * 1024 * 1024) return json({ error: 'Upload a PNG, JPEG or WebP image under 5 MB.' }, { status: 400 });
     const kind = evidenceKindSchema.parse(String(form.get('kind') || 'receipt'));
     const evidenceCount = await env.DB.prepare('SELECT COUNT(*) AS total FROM evidence WHERE case_id = ?').bind(id).first<{ total: number }>();
     if (Number(evidenceCount?.total || 0) >= 12) return json({ error: 'This report already has the maximum 12 evidence images.', code: 'EVIDENCE_LIMIT', requestId: requestId(request), retryable: false }, { status: 429 });
-    if (caseRow.submitted_at && kind !== 'bank_statement') return json({ error: 'Only evidence requested by the mock follow-up can be added after submission.' }, { status: 409 });
+    if (caseRow.submitted_at && kind !== 'bank_statement') return json({ error: 'This demo report is already finished. You can only add the bank statement requested on the progress page.' }, { status: 409 });
     const bytes = await file.arrayBuffer();
     if (detectImageMime(bytes) !== file.type) return json({ error: 'The selected file does not contain a valid PNG, JPEG or WebP image.' }, { status: 400 });
     const digest = await sha256Hex(bytes);
@@ -45,7 +45,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       await appendAudit(id, 'first30', 'evidence_storage_recovered', requestId(request), { evidenceId: duplicate.id, sha256: digest });
       return json({ ...recovered, meta: { caseRevision: revision + 1, savedAt: retriedAt } }, { status: 201 });
     }
-    if (duplicate) return json({ error: `This file matches ${duplicate.filename}. Duplicate evidence was not added.` }, { status: 409 });
+    if (duplicate) return json({ error: `This is the same image as ${duplicate.filename}, so it was not added again.` }, { status: 409 });
     const evidenceId = crypto.randomUUID(); const now = Date.now(); const objectKey = `${sessionId}/${id}/${evidenceId}`;
     await env.DB.batch([
       env.DB.prepare('INSERT INTO evidence (id, case_id, kind, object_key, filename, mime_type, size, is_sample, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')

@@ -23,29 +23,29 @@ async function renderPdfPages(bundle: Bundle) {
   const workspaceStarted = new Date(Number(row.created_at || 0)).toLocaleString('en-IN');
   const sections = [
     {
-      title: 'FIRST30 Evidence Passport', subtitle: 'Source-linked evidence file · स्रोत-संबद्ध प्रमाण फ़ाइल',
+      title: 'FIRST30 Complete Report', subtitle: 'Your complaint, screenshots and important details in one place',
       blocks: [
-        `Workspace started ${workspaceStarted}\nIndependent preparation tool — not submitted to a bank, police or government system. Verification proves integrity and internal consistency, not truth, acceptance or recovery.`,
-        `EVIDENCE SUFFICIENCY\nEvidence types: ${bundle.passport.coverage.present}/${bundle.passport.coverage.total}\nChecks passed: ${bundle.passport.counts.passed}\nConflicts: ${bundle.passport.counts.conflicts}\nMissing checks: ${bundle.passport.counts.missing}\nUnknown facts: ${bundle.passport.counts.unknownFacts}`,
-        `SOURCE-LINKED FACTS\n${bundle.passport.facts.map((fact) => `${fact.field}: ${fact.resolution?.value || 'Unknown'} · ${fact.resolution?.resolutionType || 'unresolved'} · sources ${fact.observations.map((item) => item.filename).filter(Boolean).join(', ') || 'none'}`).join('\n')}`,
+        `REPORT STARTED\n${workspaceStarted}\nThis is a FIRST30 demonstration. It was not sent to a bank, police or government system.`,
+        `WHAT IS READY\nScreenshot types added: ${bundle.passport.coverage.present}/${bundle.passport.coverage.total}\nDetails matched: ${bundle.passport.counts.passed}\nDifferences to review: ${bundle.passport.counts.conflicts}\nDetails not found: ${bundle.passport.counts.missing}\nDetails marked "I do not know": ${bundle.passport.counts.unknownFacts}`,
+        `IMPORTANT DETAILS AND WHERE THEY CAME FROM\n${bundle.passport.facts.map((fact) => `${fact.field.replace('_', ' ')}: ${fact.resolution?.value || 'I do not know'} · ${fact.observations.map((item) => item.filename).filter(Boolean).join(', ') || (fact.resolution?.resolutionType === 'manual' ? 'Entered by citizen' : 'No screenshot available')}`).join('\n')}`,
       ],
     },
     {
-      title: 'Provenance and findings', subtitle: 'Every check remains visible in the exported passport',
+      title: 'Checks and timeline', subtitle: 'Clear reasons are shown for anything that needs attention',
       blocks: [
-        `CONSISTENCY CHECKS\n${bundle.passport.checks.map((check) => `${check.status.toUpperCase()} — ${check.titleEn}: ${check.detailEn}`).join('\n')}`,
-        `EVIDENCE CHRONOLOGY\n${bundle.observations.filter((item) => item.field === 'occurred_at').sort((a,b) => String(a.value).localeCompare(String(b.value))).map((item) => `${item.value} — ${item.evidenceKind} · ${item.filename} · ${item.sourceText}`).join('\n') || 'No evidence timestamps were found.'}`,
-        `CITIZEN EXPLANATIONS\n${bundle.findings.filter((item) => item.status === 'conflict').map((item) => `${item.rule_code}: ${item.acknowledgement_note || 'No explanation attached.'}`).join('\n') || 'No conflicts recorded.'}`,
+        `DETAILS TO CHECK\n${bundle.passport.checks.map((check) => `${check.status === 'pass' ? 'MATCHED' : check.status === 'conflict' ? 'PLEASE CHECK' : 'NOT FOUND'} — ${check.titleEn}: ${check.detailEn}`).join('\n')}`,
+        `TIMES FOUND IN YOUR SCREENSHOTS\n${bundle.observations.filter((item) => item.field === 'occurred_at').sort((a,b) => String(a.value).localeCompare(String(b.value))).map((item) => `${item.value} — ${item.evidenceKind} · ${item.filename} · ${item.sourceText}`).join('\n') || 'No date or time was found in the screenshots.'}`,
+        `YOUR EXPLANATIONS\n${bundle.findings.filter((item) => item.status === 'conflict').map((item) => `${item.acknowledgement_note || 'No explanation added.'}`).join('\n') || 'No differences need an explanation.'}`,
       ],
     },
     {
-      title: 'Citizen document appendices', subtitle: 'Generated only from confirmed or explicitly unknown facts',
+      title: 'Documents ready to use', subtitle: 'Please read these documents before sharing them',
       blocks: [
         `ENGLISH COMPLAINT\n${String(row.complaint_en || '')}`,
         `हिंदी शिकायत\n${String(row.complaint_hi || '')}`,
         `BANK DISPUTE LETTER\n${channelDisputeCopy(String(row.channel || ''), String(row.bank || ''))}`,
         `1930 CALL SCRIPT\n${callScript({ amount: row.amount, channel: row.channel, reference: row.reference, occurredAt: row.occurred_at })}`,
-        `EVIDENCE INDEX\n${bundle.evidence.map((item, index) => `${index + 1}. ${item.filename} · ${item.mime_type} · SHA-256 ${item.sha256}`).join('\n')}`,
+        `SCREENSHOTS INCLUDED\n${bundle.evidence.map((item, index) => `${index + 1}. ${item.filename} · ${String(item.kind).replace('_', ' ')}`).join('\n')}`,
       ],
     },
   ];
@@ -63,7 +63,7 @@ async function renderPdfPages(bundle: Bundle) {
 
   async function finishPage(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, pageNumber: number) {
     ctx.fillStyle = '#758391'; ctx.font = '500 18px system-ui';
-    ctx.fillText(`FIRST30 · Synthetic prototype · Evidence has not been externally submitted · Page ${pageNumber}`, 92, 1700);
+    ctx.fillText(`FIRST30 · Demonstration only · Nothing was sent outside FIRST30 · Page ${pageNumber}`, 92, 1700);
     pages.push(await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not render PDF page.')), 'image/jpeg', 0.9)));
   }
 
@@ -134,8 +134,8 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
   const useHindi = locale === 'hi';
   const copy = {
     receipt: useHindi ? 'शिकायत रसीद' : 'Complaint receipt',
-    independent: useHindi ? 'स्वतंत्र रिपोर्टिंग प्रोटोटाइप' : 'Independent reporting prototype',
-    mock: useHindi ? 'मॉक - आधिकारिक सबमिशन नहीं' : 'MOCK - NOT AN OFFICIAL SUBMISSION',
+    independent: useHindi ? 'स्वतंत्र प्रदर्शन' : 'Independent demonstration',
+    mock: useHindi ? 'डेमो - आधिकारिक शिकायत नहीं' : 'DEMO - NOT AN OFFICIAL COMPLAINT',
     acknowledgement: useHindi ? 'FIRST30 पावती संख्या' : 'FIRST30 acknowledgement',
     summary: useHindi ? 'घटना का सारांश' : 'Incident summary',
     amount: useHindi ? 'रिपोर्ट की गई राशि' : 'Reported amount',
@@ -147,11 +147,11 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
     statement: useHindi ? 'नागरिक का विवरण' : 'Citizen statement',
     evidence: useHindi ? 'प्रमाण की स्थिति' : 'Evidence overview',
     files: useHindi ? 'फ़ाइलें संलग्न' : 'files attached',
-    checks: useHindi ? 'जाँच पास' : 'checks passed',
-    conflicts: useHindi ? 'विरोध समीक्षा के लिए सुरक्षित' : 'conflicts preserved for review',
-    complaintEn: 'Structured complaint - English',
-    complaintHi: 'संरचित शिकायत - हिंदी',
-    limitation: useHindi ? 'यह रसीद केवल FIRST30 के काल्पनिक प्रदर्शन में बनाई गई है। इसे NCRP, पुलिस, बैंक या किसी सरकारी प्रणाली में जमा नहीं किया गया है।' : 'This receipt was created only inside the FIRST30 synthetic demonstration. It was not submitted to NCRP, police, a bank or any government system.',
+    checks: useHindi ? 'जानकारी मेल खाई' : 'details matched',
+    conflicts: useHindi ? 'अंतर की समीक्षा बाकी' : 'differences need review',
+    complaintEn: 'Complaint - English',
+    complaintHi: 'शिकायत - हिंदी',
+    limitation: useHindi ? 'यह रसीद केवल FIRST30 के प्रदर्शन में बनाई गई है। इसे NCRP, पुलिस, बैंक या किसी सरकारी प्रणाली में जमा नहीं किया गया है।' : 'This receipt was created only inside the FIRST30 demonstration. It was not submitted to NCRP, police, a bank or any government system.',
   };
 
   function startPage(pageNumber: number, continuation = false) {
@@ -179,7 +179,7 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
     const { canvas, ctx, pageNumber } = page;
     ctx.strokeStyle = '#d4cec2'; ctx.beginPath(); ctx.moveTo(78, 1652); ctx.lineTo(1162, 1652); ctx.stroke();
     ctx.fillStyle = '#62717a'; ctx.font = '600 15px system-ui, "Noto Sans Devanagari", sans-serif';
-    ctx.fillText('FIRST30 · Synthetic demonstration · Evidence integrity and internal consistency only', 78, 1692);
+    ctx.fillText('FIRST30 · Demonstration only · Nothing was sent outside FIRST30', 78, 1692);
     ctx.textAlign = 'right'; ctx.fillText(`Page ${pageNumber}`, 1162, 1692); ctx.textAlign = 'left';
     pages.push(await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not render complaint receipt.')), 'image/jpeg', 0.94)));
   }
@@ -241,12 +241,12 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
     if (!response.ok) throw new Error(`Could not read ${evidence.filename}.`);
     const bytes = new Uint8Array(await response.arrayBuffer());
     const digest = await sha256Hex(bytes);
-    if (digest !== evidence.sha256) throw new Error(`${evidence.filename} no longer matches its stored checksum.`);
+    if (digest !== evidence.sha256) throw new Error(`${evidence.filename} has changed since it was added. Please remove it and add it again.`);
     const path = `evidence/${String(index + 1).padStart(2, '0')}-${String(evidence.filename).replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     files[path] = bytes; manifestFiles.push({ path, mimeType: evidence.mime_type, size: bytes.length, sha256: digest, evidenceId: evidence.id });
   }
-  const pdf = await jpegPagesToPdf(await renderPdfPages(bundle)); files['FIRST30-evidence-passport.pdf'] = pdf;
-  manifestFiles.push({ path: 'FIRST30-evidence-passport.pdf', mimeType: 'application/pdf', size: pdf.length, sha256: await sha256Hex(pdf) });
+  const pdf = await jpegPagesToPdf(await renderPdfPages(bundle)); files['FIRST30-complete-report.pdf'] = pdf;
+  manifestFiles.push({ path: 'FIRST30-complete-report.pdf', mimeType: 'application/pdf', size: pdf.length, sha256: await sha256Hex(pdf) });
   const normalizedCase = {
     id: bundle.case.id,
     fraudType: bundle.case.fraud_type,
@@ -283,6 +283,7 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
   }, null, 2));
   files['passport.json'] = passportRecord; manifestFiles.push({ path: 'passport.json', mimeType: 'application/json', size: passportRecord.length, sha256: await sha256Hex(passportRecord) });
   const caseFingerprint = await sha256Hex(stableJson({
+    documentTemplateVersion: 3,
     case: { id: bundle.case.id, fraudType: bundle.case.fraud_type, channel: bundle.case.channel, amount: bundle.case.amount, occurredAt: bundle.case.occurred_at, reference: bundle.case.reference, bank: bundle.case.bank, recipient: bundle.case.recipient, narrative: bundle.case.narrative_input, complaintEn: bundle.case.complaint_en, complaintHi: bundle.case.complaint_hi },
     evidence: bundle.evidence.map((item) => ({ id: item.id, filename: item.filename, mimeType: item.mime_type, size: item.size, sha256: item.sha256, confirmedAt: item.confirmed_at })),
     chronology: bundle.chronology.map((item) => ({ occurredAt: item.occurred_at, eventType: item.event_type, descriptionEn: item.description_en, descriptionHi: item.description_hi, source: item.source, position: item.position })),
@@ -292,12 +293,12 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
   }));
   const core = { format: 'FIRST30-evidence-passport' as const, formatVersion: 2 as const, caseId, createdAt: Date.now(), caseFingerprint, files: manifestFiles };
   const result = await api<{ manifest?: Record<string, unknown>; error?: string }>(`/api/cases/${caseId}/exports`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(core) });
-  if (!result.manifest) throw new Error(result.error || 'Could not sign the Evidence Passport.');
+  if (!result.manifest) throw new Error(result.error || 'Could not prepare the complete report. Please try again.');
   files['manifest.json'] = strToU8(JSON.stringify(result.manifest, null, 2));
   const zip = zipSync(files, { level: 6 });
   const ownedZip = new Uint8Array(zip.byteLength); ownedZip.set(zip);
   const blob = new Blob([ownedZip.buffer], { type: 'application/zip' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
-  const filename = `FIRST30-Evidence-Passport-${String(result.manifest.verificationCode)}.zip`;
+  const filename = `FIRST30-complete-report-${String(result.manifest.verificationCode)}.zip`;
   anchor.href = url; anchor.download = filename; anchor.hidden = true; document.body.append(anchor); anchor.click(); anchor.remove();
   return { manifest: result.manifest, downloadUrl: url, filename };
 }

@@ -11,10 +11,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (operation.replay) return json(await caseBundle(sessionId, id));
     const caseRow = await ownedCase(sessionId, id); assertCaseRevision(request, caseRow);
     const bundle = await caseBundle(sessionId, id);
-    if (!bundle.intake) return json({ error: 'Complete urgent triage before submitting.' }, { status: 409 });
-    if (!bundle.profile) return json({ error: 'Complete the fictional complainant profile before submitting.' }, { status: 409 });
-    if (bundle.readiness.blockers) return json({ error: 'Review the remaining required information before submitting.', issues: bundle.readiness.issues }, { status: 409 });
-    if (bundle.resolutions.length < 6) return json({ error: 'Confirm each source-linked fact or mark it Unknown.' }, { status: 409 });
+    if (!bundle.intake) return json({ error: 'Complete the safety and payment steps before finishing the report.' }, { status: 409 });
+    if (!bundle.profile) return json({ error: 'Check the sample person’s details before finishing the report.' }, { status: 409 });
+    if (bundle.readiness.blockers) return json({ error: 'Check the remaining required information before finishing the report.', issues: bundle.readiness.issues }, { status: 409 });
+    if (bundle.resolutions.length < 6) return json({ error: 'Check every important detail or choose “I do not know”.' }, { status: 409 });
 
     const now = Date.now(); const acknowledgement = `F30-DEMO-${crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`;
     const correlationId = requestId(request);

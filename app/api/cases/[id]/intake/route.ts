@@ -6,7 +6,7 @@ import { appendAudit, assertCaseRevision, requestId } from '@/lib/reliability';
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await ensureSchema(); const sessionId = await requireSession(request); const { id } = await context.params; const caseRow = await ownedCase(sessionId, id); assertCaseRevision(request, caseRow);
-    if (caseRow.submitted_at) return json({ error: 'The submitted snapshot is immutable. Start a new synthetic report to change triage.' }, { status: 409 });
+    if (caseRow.submitted_at) return json({ error: 'This demo report is already finished and cannot be edited. Start a new report to change the payment details.' }, { status: 409 });
     const value = intakeSchema.parse(await request.json()); const now = Date.now();
     await env.DB.batch([
       env.DB.prepare("INSERT INTO case_intake (case_id, loss_timing, helpline_contacted, bank_contacted, delay_reason, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(case_id) DO UPDATE SET loss_timing = excluded.loss_timing, helpline_contacted = excluded.helpline_contacted, bank_contacted = excluded.bank_contacted, delay_reason = excluded.delay_reason, updated_at = excluded.updated_at")

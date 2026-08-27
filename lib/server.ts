@@ -263,6 +263,7 @@ export async function caseBundle(sessionId: string, caseId: string) {
 export async function caseFingerprint(sessionId: string, caseId: string) {
   const bundle = await caseBundle(sessionId, caseId);
   const record = {
+    documentTemplateVersion: 3,
     case: {
       id: bundle.case.id, fraudType: bundle.case.fraud_type, channel: bundle.case.channel, amount: bundle.case.amount, occurredAt: bundle.case.occurred_at,
       reference: bundle.case.reference, bank: bundle.case.bank, recipient: bundle.case.recipient, narrative: bundle.case.narrative_input,

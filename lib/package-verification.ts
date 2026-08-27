@@ -5,7 +5,7 @@ import { sha256Hex, stableJson } from './response-file';
 export async function verifyArchiveLocally(input: ArrayBuffer | Uint8Array) {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   const archive = unzipSync(bytes);
-  if (!archive['manifest.json']) throw new Error('manifest.json is missing from this ZIP.');
+  if (!archive['manifest.json']) throw new Error('This is not a complete FIRST30 report package.');
   const manifest = signedManifestSchema.parse(JSON.parse(strFromU8(archive['manifest.json'])));
   const { manifestHash, signature, ...unsigned } = manifest;
   const calculatedHash = await sha256Hex(stableJson(unsigned)); const failedFiles: string[] = [];

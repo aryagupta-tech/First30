@@ -10,14 +10,14 @@ const bodySchema = z.object({ facts: z.array(factResolutionSchema).max(6) });
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await ensureSchema(); const sessionId = await requireSession(request); const { id } = await context.params; const caseRow = await ownedCase(sessionId, id); assertCaseRevision(request, caseRow);
-    if (caseRow.submitted_at) return json({ error: 'The submitted snapshot is immutable. Confirm facts before mock submission.' }, { status: 409 });
+    if (caseRow.submitted_at) return json({ error: 'This demo report is already finished and cannot be edited. Check the details before you finish next time.' }, { status: 409 });
     const { facts } = bodySchema.parse(await request.json());
-    if (new Set(facts.map((item) => item.field)).size !== facts.length) return json({ error: 'Each fact can be resolved only once.' }, { status: 400 });
+    if (new Set(facts.map((item) => item.field)).size !== facts.length) return json({ error: 'Choose only one answer for each detail.' }, { status: 400 });
     for (const fact of facts) {
       if (fact.resolutionType === 'evidence') {
-        if (!fact.sourceEvidenceId) return json({ error: `Choose supporting evidence for ${fact.field}.` }, { status: 400 });
+        if (!fact.sourceEvidenceId) return json({ error: `Choose the screenshot that shows ${fact.field}.` }, { status: 400 });
         const support = await env.DB.prepare('SELECT 1 AS ok FROM evidence_observations WHERE case_id = ? AND evidence_id = ? AND field = ? AND normalized_value = ?').bind(id, fact.sourceEvidenceId, fact.field, normalizeFact(fact.field, fact.value)).first();
-        if (!support) return json({ error: `${fact.field} is not supported by the selected evidence.` }, { status: 409 });
+        if (!support) return json({ error: `The selected screenshot does not show the chosen ${fact.field}. Please choose another value or type it yourself.` }, { status: 409 });
       }
     }
     const now = Date.now();

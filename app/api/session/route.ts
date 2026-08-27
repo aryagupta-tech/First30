@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   try {
     await ensureSchema(); await enforceRateLimit(request, 'demo_login', 12, 10 * 60 * 1000);
     const body = demoLoginSchema.safeParse(await request.json().catch(() => ({})));
-    if (!body.success) return json({ error: 'Use the visible synthetic mobile number and demo OTP.' }, { status: 400 });
+    if (!body.success) return json({ error: 'Use the sample mobile number and demo OTP shown on this page.' }, { status: 400 });
     const id = await createSession(body.data.locale);
     return json({ active: true, persona: { id: 'sunita', name: 'Sunita Sharma', mobile: '90000 00000' }, csrfToken: await csrfToken(id), expiresAt: Date.now() + 24 * 60 * 60 * 1000 }, { headers: { 'set-cookie': await sessionCookie(id, new URL(request.url).protocol === 'https:') } });
   } catch (error) { return errorResponse(error); }
