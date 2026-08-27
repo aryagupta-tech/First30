@@ -31,66 +31,78 @@ Citizen statement:
 
 > I received a call from someone claiming to be from my bank. They said my KYC would expire and asked me to approve a UPI request. ₹18,499 left my account before I realised it was a scam.
 
-## 0:00–1:00 — show the citizen journey
+## 0:00–1:00 — citizen demo only
 
-### 0:00–0:08 — problem and emergency action
+### 0:00–0:07 — problem and urgent action
 
 Show the home page and say:
 
-> “After cyber fraud, a victim should not have to fight a confusing form. FIRST30 puts the urgent actions first: call 1930, contact the bank, and never share an OTP.”
+> “Financial cyber-fraud victims lose critical time in confusing forms. FIRST30 puts the urgent actions first: call 1930, contact the bank and never share an OTP.”
 
-### 0:08–0:18 — start and triage
+### 0:07–0:15 — enter as the citizen
 
-Open **Start a report**, use the visible mobile and OTP, pass the safety screen and show the prefilled fictional payment details.
+Open **Start a report**, use the visible demo login and move quickly through the safety and prefilled payment screens.
 
-> “The journey uses five plain-language steps, large controls, autosave, Hindi and read-aloud help.”
+> “Sunita is fictional. She gets five plain-language steps, large controls, autosave, Hindi and read-aloud help.”
 
-### 0:18–0:40 — prove custom uploads work
+### 0:15–0:36 — upload and check evidence
 
-On the screenshot step, tick the safe-test-data confirmation. Upload the three downloaded images one by one instead of pressing the prepared-sample button. Confirm the text FIRST30 reads from each image.
+Tick the safe-test-data confirmation and upload the three downloaded screenshots. Use honest jump cuts during local reading, while leaving a moment of the progress screen visible.
 
-Use short, honest jump cuts while the local reader is working so the final video stays under two minutes. Keep enough of the progress screen visible to show that the reading step actually ran.
-
-> “These are separate fictional files, not hard-coded form values. FIRST30 reads each image on this device, finds payment facts and links every fact to the screenshot where it appeared.”
+> “She uploads once. FIRST30 reads each file on this device and links every important fact to its screenshot.”
 
 Show the two amount choices.
 
-> “The receipt says ₹18,499, while the scam message says ₹18,400. FIRST30 exposes the difference instead of silently guessing.”
+> “The receipt says ₹18,499 and the chat says ₹18,400. FIRST30 exposes the difference instead of guessing.”
 
-### 0:40–1:00 — complaint, submission and follow-up
+### 0:36–0:51 — complaint and review
 
-Continue, show the natural-language statement, review the English/Hindi complaint, then finish the demo submission.
+Select the receipt amount, continue, briefly show the natural-language statement and the review page.
 
-> “The citizen explains the incident once. FIRST30 builds a complete bilingual report, safely creates one demo reference, preserves progress, and keeps the mock boundary visible.”
+> “Sunita explains the incident once. FIRST30 prepares a complete English and Hindi complaint from only the details she confirmed.”
 
-Use `sample-bank-statement.png` for the follow-up request, then download the complaint receipt and complete report.
+### 0:51–1:00 — complete the main journey
 
-## 1:00–2:00 — explain why it is better
+Click **Finish and create demo reference** and end the first minute on the `F30-DEMO-...` acknowledgement.
 
-### 1:00–1:18 — real outcome
+> “Her progress, screenshots and complaint now stay together under one clearly labelled demo reference.”
 
-> “The outcome is not a decorative dashboard. It is a usable complaint, original screenshots, a fact-to-source record, a visible contradiction, a follow-up response and a downloadable report that can be checked for later changes.”
+Do not demonstrate the follow-up upload, report verification or backend receipt after 1:00. Those features can remain available for reviewers to test.
 
-Open **Check my downloaded report** and select the downloaded FIRST30 report.
+## 1:00–2:00 — build and product choices only
 
-### 1:18–1:42 — backend reliability
+### 1:00–1:14 — why this problem and interface
 
-Expand **How FIRST30 kept this report safe**.
+Keep the acknowledgement page visible and say:
 
-> “The reporting engine protects against lost progress and repeated clicks. It freezes one encrypted submission copy, records each command once, uses a transactional outbox for resumable processing, tracks evidence storage states and keeps a hash-linked audit history. D1 stores structured records and R2-compatible storage holds evidence.”
+> “We redesigned the financial-fraud journey because the current pain is not only filing a complaint; it is understanding urgent actions, evidence requirements and progress. Easy Mode uses one question group at a time, large controls and bilingual guidance for older and low-digital-literacy citizens.”
 
-### 1:42–1:52 — privacy and honesty
+### 1:14–1:31 — evidence-processing choice
 
-> “No evidence is sent to an AI or OCR provider. Tesseract runs locally. The public build accepts only bundled samples or files the tester confirms are fictional or fully redacted. Nothing reaches NCRP, police or a bank.”
+Show a still of the source-linked fact board while explaining:
 
-### 1:52–2:00 — Codex and close
+> “We deliberately avoided runtime AI for evidence. Bundled Tesseract reads images locally, transparent parsers identify Indian payment details and deterministic rules expose missing or conflicting values. This is private, explainable and never invents a fact.”
 
-> “Codex was used throughout to research the official brief and citizen journey, design the product, implement the frontend and resilient backend, and test the complete flow. FIRST30: explain once, add once, review clearly.”
+### 1:31–1:48 — backend and infrastructure
+
+Show the expanded **How FIRST30 kept this report safe** receipt as supporting footage, without presenting it as another citizen task.
+
+> “D1 stores structured case records and R2-compatible storage holds evidence. Revisions prevent lost edits, idempotency prevents duplicate submissions, encrypted immutable snapshots preserve the finished report, a transactional outbox supports safe retries and a hash-linked audit history makes processing traceable.”
+
+### 1:48–1:55 — what is mocked
+
+> “NCRP submission, acknowledgement and the additional-document request are clearly mocked. Nothing reaches a government, police or banking system, and all demo data is fictional.”
+
+### 1:55–2:00 — Codex and close
+
+> “Codex helped research the public-service journey, design the product, implement the frontend and backend, and validate the complete build. FIRST30: explain once, upload once, review clearly.”
 
 ## Recording checklist
 
 - Keep the final video under two minutes.
-- Show the custom file picker, local reading progress, amount conflict, complaint, acknowledgement, follow-up, download and report check.
+- Stop citizen actions at the acknowledgement before the 1:00 mark.
+- Show the custom file picker, local reading progress, amount conflict, complaint and acknowledgement in minute one.
+- Use minute two only for the problem choice, interface decisions, evidence architecture, backend reliability, mocked boundary and Codex contribution.
 - Do not say the report reached NCRP or that funds were frozen or recovered.
 - Keep the **Demo** label visible during submission and tracking.
 - Provide the visible demo mobile and OTP in the submission form.
