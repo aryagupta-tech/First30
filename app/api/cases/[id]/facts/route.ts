@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { z } from 'zod';
 import { factResolutionSchema } from '@/lib/contracts';
-import { normalizeFact } from '@/lib/evidence-passport';
+import { materializeCaseFacts, normalizeFact } from '@/lib/evidence-passport';
 import { caseBundle, ensureSchema, errorResponse, json, ownedCase, requireSession, syncPassportFindings } from '@/lib/server';
 import { appendAudit, assertCaseRevision, requestId } from '@/lib/reliability';
 
@@ -28,10 +28,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       env.DB.prepare('INSERT INTO custody_events (id, case_id, evidence_id, action, detail, created_at) VALUES (?, ?, NULL, ?, ?, ?)').bind(crypto.randomUUID(), id, 'facts_resolved', `${facts.length} canonical facts confirmed`, now),
       env.DB.prepare("UPDATE cases SET status = 'evidence_review', step = 3, revision = revision + 1, updated_at = ? WHERE id = ? AND session_id = ?").bind(now, id, sessionId),
     ]);
-    const values = new Map(facts.map((item) => [item.field, item.resolutionType === 'unknown' ? 'Unknown' : item.value]));
-    const numericAmount = Number(values.get('amount') || 0);
+    const resolvedFields = materializeCaseFacts(facts.map((item) => {
+      const value = item.resolutionType === 'unknown' ? 'Unknown' : item.value;
+      return { field: item.field, value, normalizedValue: normalizeFact(item.field, value) };
+    }));
     await env.DB.prepare('UPDATE cases SET amount = ?, reference = ?, recipient = ?, bank = ?, occurred_at = ?, updated_at = ? WHERE id = ? AND session_id = ?')
-      .bind(Number.isFinite(numericAmount) ? Math.round(numericAmount) : 0, values.get('reference') || 'Unknown', values.get('recipient') || 'Unknown', values.get('institution') || 'Unknown', values.get('occurred_at') || '', now, id, sessionId).run();
+      .bind(resolvedFields.amount ?? Number(caseRow.amount || 0), resolvedFields.reference ?? String(caseRow.reference || 'Unknown'), resolvedFields.recipient ?? String(caseRow.recipient || 'Unknown'), resolvedFields.bank ?? String(caseRow.bank || 'Unknown'), resolvedFields.occurred_at ?? String(caseRow.occurred_at || ''), now, id, sessionId).run();
     await syncPassportFindings(id);
     await appendAudit(id, 'citizen', 'evidence_facts_confirmed', requestId(request), { factCount: facts.length, unknownCount: facts.filter((fact) => fact.resolutionType === 'unknown').length });
     return json(await caseBundle(sessionId, id));

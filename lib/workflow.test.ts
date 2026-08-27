@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
 import { COPY, SAMPLE_BANK_STATEMENT_TEXT, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, complainantProfileSchema, demoLoginSchema, evidenceDataUseSchema, extractionSchema, intakeSchema, manifestCoreSchema, mockSubmissionSchema } from './contracts';
-import { derivePassport, normalizeFact, observationsFromText } from './evidence-passport';
+import { derivePassport, materializeCaseFacts, normalizeFact, observationsFromText } from './evidence-passport';
 import { detectImageMime, findContradictions, parseReceiptText, sha256Hex, stableJson } from './response-file';
 import { canTransition, caseStatusFor, evaluateReadiness, isExportable } from './workflow';
 import { verifyArchiveLocally } from './package-verification';
@@ -59,9 +59,17 @@ describe('Evidence Passport analysis', () => {
   });
 
   it('normalizes phone, recipient and reference values deterministically', () => {
+    expect(normalizeFact('amount', '₹18,499')).toBe('18499');
     expect(normalizeFact('phone', '+91 98765 43210')).toBe('9876543210');
     expect(normalizeFact('recipient', 'Verify.KYC@FakeUPI')).toBe('verify.kyc@fakeupi');
     expect(normalizeFact('reference', 'utr 826194730521')).toBe('UTR826194730521');
+  });
+
+  it('materializes a formatted confirmed amount without turning it into zero', () => {
+    expect(materializeCaseFacts([
+      { field: 'amount', value: '₹18,499', normalizedValue: '18499' },
+      { field: 'institution', value: 'Bharat Cooperative Bank', normalizedValue: 'bharat cooperative bank' },
+    ])).toEqual({ amount: 18_499, bank: 'Bharat Cooperative Bank' });
   });
 
   it('exposes the deliberate amount conflict while passing phone and recipient checks', () => {

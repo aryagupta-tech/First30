@@ -17,6 +17,23 @@ export function normalizeFact(field: FactKey, value: string | number) {
   return raw.toLowerCase().replace(/\s+/g, ' ');
 }
 
+export function materializeCaseFacts(resolutions: Array<Pick<ResolutionRecord, 'field' | 'value' | 'normalizedValue'>>) {
+  const byField = new Map(resolutions.map((item) => [item.field, item]));
+  const amount = byField.get('amount');
+  const reference = byField.get('reference');
+  const recipient = byField.get('recipient');
+  const institution = byField.get('institution');
+  const occurredAt = byField.get('occurred_at');
+  const normalizedAmount = amount ? Number(amount.normalizedValue || normalizeFact('amount', amount.value)) : Number.NaN;
+  return {
+    ...(amount ? { amount: Number.isFinite(normalizedAmount) ? Math.round(normalizedAmount) : 0 } : {}),
+    ...(reference ? { reference: reference.value } : {}),
+    ...(recipient ? { recipient: recipient.value } : {}),
+    ...(institution ? { bank: institution.value } : {}),
+    ...(occurredAt ? { occurred_at: occurredAt.value } : {}),
+  };
+}
+
 export function observationsFromText(kind: string, text: string): Observation[] {
   const observations: Observation[] = [];
   const add = (field: FactKey, value: string, sourceText: string, confidence = 0.9) => observations.push({ field, value, normalizedValue: normalizeFact(field, value), sourceText, confidence });

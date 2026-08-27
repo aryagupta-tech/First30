@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { evaluateReadiness } from './workflow';
 import { stableJson, sha256Hex } from './response-file';
-import { derivePassport, type ObservationRecord, type ResolutionRecord } from './evidence-passport';
+import { derivePassport, materializeCaseFacts, type ObservationRecord, type ResolutionRecord } from './evidence-passport';
 import { ZodError } from 'zod';
 import { assertMutationSecurity, decryptPrivateJson, problem } from './reliability';
 
@@ -253,11 +253,15 @@ export async function caseBundle(sessionId: string, caseId: string) {
     env.DB.prepare('SELECT ciphertext, iv FROM secure_profiles WHERE case_id = ?').bind(caseId).first<{ ciphertext: string; iv: string }>(),
   ]);
   const profile = secureProfile ? await decryptPrivateJson<Record<string, unknown>>(secureProfile.ciphertext, secureProfile.iv) : legacyProfile;
+  // Fact resolutions are the citizen-confirmed source of truth. Overlaying them
+  // also repairs older drafts where a formatted amount such as "18,499" was
+  // accidentally materialized as zero in the cases table.
+  const effectiveCaseRow = { ...caseRow, ...materializeCaseFacts(passportDataResult.resolutions) };
   const contradictions = passportDataResult.passport.checks.filter((item) => item.status === 'conflict').map((item) => item.detailEn);
   const readiness = evaluateReadiness({
-    amount: Number(caseRow.amount || 0), occurredAt: String(caseRow.occurred_at || ''), reference: String(caseRow.reference || ''), bank: String(caseRow.bank || ''), recipient: String(caseRow.recipient || ''), narrative: String(caseRow.narrative_input || ''), evidence: evidenceRows.results || [], contradictions,
+    amount: Number(effectiveCaseRow.amount || 0), occurredAt: String(effectiveCaseRow.occurred_at || ''), reference: String(effectiveCaseRow.reference || ''), bank: String(effectiveCaseRow.bank || ''), recipient: String(effectiveCaseRow.recipient || ''), narrative: String(effectiveCaseRow.narrative_input || ''), evidence: evidenceRows.results || [], contradictions,
   });
-  return { case: caseRow, evidence: evidenceRows.results, chronology: chronology.results, milestones: milestones.results, exports: exports.results, readiness, observations: passportDataResult.observations, resolutions: passportDataResult.resolutions, passport: passportDataResult.passport, findings: findings.results, custody: custody.results, intake, profile, submission, requests: requests.results, requestResponses: requestResponses.results, events: events.results, meta: { caseRevision: Number(caseRow.revision || 1), savedAt: Number(caseRow.updated_at || Date.now()) } };
+  return { case: effectiveCaseRow, evidence: evidenceRows.results, chronology: chronology.results, milestones: milestones.results, exports: exports.results, readiness, observations: passportDataResult.observations, resolutions: passportDataResult.resolutions, passport: passportDataResult.passport, findings: findings.results, custody: custody.results, intake, profile, submission, requests: requests.results, requestResponses: requestResponses.results, events: events.results, meta: { caseRevision: Number(caseRow.revision || 1), savedAt: Number(caseRow.updated_at || Date.now()) } };
 }
 
 export async function caseFingerprint(sessionId: string, caseId: string) {

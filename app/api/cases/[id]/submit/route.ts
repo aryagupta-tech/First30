@@ -13,7 +13,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const bundle = await caseBundle(sessionId, id);
     if (!bundle.intake) return json({ error: 'Complete the safety and payment steps before finishing the report.' }, { status: 409 });
     if (!bundle.profile) return json({ error: 'Check the sample person’s details before finishing the report.' }, { status: 409 });
-    if (bundle.readiness.blockers) return json({ error: 'Check the remaining required information before finishing the report.', issues: bundle.readiness.issues }, { status: 409 });
+    if (bundle.readiness.blockers) {
+      const blockers = bundle.readiness.issues.filter((issue) => issue.severity === 'blocker');
+      return json({ error: blockers[0]?.messageEn || 'Check the remaining required information before finishing the report.', code: 'REPORT_INCOMPLETE', requestId: requestId(request), retryable: false, fieldErrors: Object.fromEntries(blockers.filter((issue) => issue.field).map((issue) => [String(issue.field), issue.messageEn])), issues: bundle.readiness.issues }, { status: 409 });
+    }
     if (bundle.resolutions.length < 6) return json({ error: 'Check every important detail or choose “I do not know”.' }, { status: 409 });
 
     const now = Date.now(); const acknowledgement = `F30-DEMO-${crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`;
