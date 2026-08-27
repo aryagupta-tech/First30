@@ -80,6 +80,10 @@ const schemaStatements = [
 let schemaReady: Promise<void> | null = null;
 
 export async function ensureSchema() {
+  // Sites applies the checked-in D1 migrations before the Worker is published.
+  // Re-checking schema tables on every cold production isolate adds a full D1
+  // round trip to every citizen action, so keep runtime bootstrap local-only.
+  if (process.env.NODE_ENV === 'production') return;
   schemaReady ??= (async () => {
     await env.DB.prepare('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)').run();
     const applied = await env.DB.prepare('SELECT version FROM schema_migrations WHERE version = ?').bind(CURRENT_SCHEMA_VERSION).first();
@@ -199,10 +203,10 @@ export async function ownedEvidence(sessionId: string, caseId: string, evidenceI
 }
 
 async function passportData(caseId: string) {
-  const [evidenceRows, observationRows, resolutionRows] = await Promise.all([
-    env.DB.prepare('SELECT id, kind, filename FROM evidence WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT o.*, e.kind AS evidence_kind, e.filename FROM evidence_observations o JOIN evidence e ON e.id = o.evidence_id WHERE o.case_id = ? ORDER BY o.created_at, o.id').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM fact_resolutions WHERE case_id = ? ORDER BY field').bind(caseId).all<Record<string, unknown>>(),
+  const [evidenceRows, observationRows, resolutionRows] = await env.DB.batch<Record<string, unknown>>([
+    env.DB.prepare('SELECT id, kind, filename FROM evidence WHERE case_id = ? ORDER BY created_at, id').bind(caseId),
+    env.DB.prepare('SELECT o.*, e.kind AS evidence_kind, e.filename FROM evidence_observations o JOIN evidence e ON e.id = o.evidence_id WHERE o.case_id = ? ORDER BY o.created_at, o.id').bind(caseId),
+    env.DB.prepare('SELECT * FROM fact_resolutions WHERE case_id = ? ORDER BY field').bind(caseId),
   ]);
   const evidence = (evidenceRows.results || []).map((item) => ({ id: String(item.id), kind: String(item.kind), filename: String(item.filename) }));
   const observations: ObservationRecord[] = (observationRows.results || []).map((item) => ({
@@ -235,33 +239,50 @@ export async function recordCustody(caseId: string, evidenceId: string | null, a
 }
 
 export async function caseBundle(sessionId: string, caseId: string) {
-  const caseRow = await ownedCase(sessionId, caseId);
-  const [evidenceRows, chronology, milestones, exports, passportDataResult, findings, custody, intake, legacyProfile, submission, requests, requestResponses, events, secureProfile] = await Promise.all([
-    env.DB.prepare('SELECT e.*, i.sha256, i.ocr_text, i.extraction_json, i.confirmed_at, a.client_sha256, a.ocr_method, a.analysis_status, a.analysed_at FROM evidence e LEFT JOIN evidence_integrity i ON i.evidence_id = e.id LEFT JOIN evidence_analysis a ON a.evidence_id = e.id WHERE e.case_id = ? ORDER BY e.created_at, e.id').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM incident_events WHERE case_id = ? ORDER BY position, occurred_at, id').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM milestones WHERE case_id = ? ORDER BY occurred_at DESC, created_at DESC, id').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT id, version, verification_code, content_fingerprint, manifest_hash, signature, file_count, created_at FROM case_exports WHERE case_id = ? ORDER BY version DESC').bind(caseId).all<Record<string, unknown>>(),
-    passportData(caseId),
-    env.DB.prepare('SELECT * FROM passport_findings WHERE case_id = ? ORDER BY status, rule_code').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM custody_events WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM case_intake WHERE case_id = ?').bind(caseId).first<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM complainant_profiles WHERE case_id = ?').bind(caseId).first<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM complaint_submissions WHERE case_id = ?').bind(caseId).first<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM information_requests WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM information_request_responses WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT * FROM case_events WHERE case_id = ? ORDER BY created_at, id').bind(caseId).all<Record<string, unknown>>(),
-    env.DB.prepare('SELECT ciphertext, iv FROM secure_profiles WHERE case_id = ?').bind(caseId).first<{ ciphertext: string; iv: string }>(),
+  const [caseResult, evidenceRows, chronology, milestones, exports, observationRows, resolutionRows, findings, custody, intakeResult, legacyProfileResult, submissionResult, requests, requestResponses, events, secureProfileResult] = await env.DB.batch<Record<string, unknown>>([
+    env.DB.prepare('SELECT * FROM cases WHERE id = ? AND session_id = ?').bind(caseId, sessionId),
+    env.DB.prepare('SELECT e.*, i.sha256, i.ocr_text, i.extraction_json, i.confirmed_at, a.client_sha256, a.ocr_method, a.analysis_status, a.analysed_at FROM evidence e LEFT JOIN evidence_integrity i ON i.evidence_id = e.id LEFT JOIN evidence_analysis a ON a.evidence_id = e.id WHERE e.case_id = ? ORDER BY e.created_at, e.id').bind(caseId),
+    env.DB.prepare('SELECT * FROM incident_events WHERE case_id = ? ORDER BY position, occurred_at, id').bind(caseId),
+    env.DB.prepare('SELECT * FROM milestones WHERE case_id = ? ORDER BY occurred_at DESC, created_at DESC, id').bind(caseId),
+    env.DB.prepare('SELECT id, version, verification_code, content_fingerprint, manifest_hash, signature, file_count, created_at FROM case_exports WHERE case_id = ? ORDER BY version DESC').bind(caseId),
+    env.DB.prepare('SELECT o.*, e.kind AS evidence_kind, e.filename FROM evidence_observations o JOIN evidence e ON e.id = o.evidence_id WHERE o.case_id = ? ORDER BY o.created_at, o.id').bind(caseId),
+    env.DB.prepare('SELECT * FROM fact_resolutions WHERE case_id = ? ORDER BY field').bind(caseId),
+    env.DB.prepare('SELECT * FROM passport_findings WHERE case_id = ? ORDER BY status, rule_code').bind(caseId),
+    env.DB.prepare('SELECT * FROM custody_events WHERE case_id = ? ORDER BY created_at, id').bind(caseId),
+    env.DB.prepare('SELECT * FROM case_intake WHERE case_id = ?').bind(caseId),
+    env.DB.prepare('SELECT * FROM complainant_profiles WHERE case_id = ?').bind(caseId),
+    env.DB.prepare('SELECT * FROM complaint_submissions WHERE case_id = ?').bind(caseId),
+    env.DB.prepare('SELECT * FROM information_requests WHERE case_id = ? ORDER BY created_at, id').bind(caseId),
+    env.DB.prepare('SELECT * FROM information_request_responses WHERE case_id = ? ORDER BY created_at, id').bind(caseId),
+    env.DB.prepare('SELECT * FROM case_events WHERE case_id = ? ORDER BY created_at, id').bind(caseId),
+    env.DB.prepare('SELECT ciphertext, iv FROM secure_profiles WHERE case_id = ?').bind(caseId),
   ]);
-  const profile = secureProfile ? await decryptPrivateJson<Record<string, unknown>>(secureProfile.ciphertext, secureProfile.iv) : legacyProfile;
+  const caseRow = caseResult.results?.[0];
+  if (!caseRow) throw problem('CASE_NOT_FOUND', 'This report was not found in your private session.', 404, false);
+  const evidence = evidenceRows.results || [];
+  const observations: ObservationRecord[] = (observationRows.results || []).map((item) => ({
+    id: String(item.id), evidenceId: String(item.evidence_id), evidenceKind: String(item.evidence_kind), filename: String(item.filename),
+    field: String(item.field) as ObservationRecord['field'], value: String(item.value), normalizedValue: String(item.normalized_value), sourceText: String(item.source_text), confidence: Number(item.confidence) / 1000,
+  }));
+  const resolutions: ResolutionRecord[] = (resolutionRows.results || []).map((item) => ({
+    field: String(item.field) as ResolutionRecord['field'], value: String(item.value), normalizedValue: String(item.normalized_value),
+    resolutionType: String(item.resolution_type) as ResolutionRecord['resolutionType'], sourceEvidenceId: item.source_evidence_id ? String(item.source_evidence_id) : null,
+  }));
+  const passport = derivePassport(evidence.map((item) => ({ id: String(item.id), kind: String(item.kind), filename: String(item.filename) })), observations, resolutions);
+  const secureProfile = secureProfileResult.results?.[0] as { ciphertext?: string; iv?: string } | undefined;
+  const legacyProfile = legacyProfileResult.results?.[0] || null;
+  const intake = intakeResult.results?.[0] || null;
+  const submission = submissionResult.results?.[0] || null;
+  const profile = secureProfile?.ciphertext && secureProfile.iv ? await decryptPrivateJson<Record<string, unknown>>(secureProfile.ciphertext, secureProfile.iv) : legacyProfile;
   // Fact resolutions are the citizen-confirmed source of truth. Overlaying them
   // also repairs older drafts where a formatted amount such as "18,499" was
   // accidentally materialized as zero in the cases table.
-  const effectiveCaseRow: Record<string, unknown> = { ...caseRow, ...materializeCaseFacts(passportDataResult.resolutions) };
-  const contradictions = passportDataResult.passport.checks.filter((item) => item.status === 'conflict').map((item) => item.detailEn);
+  const effectiveCaseRow: Record<string, unknown> = { ...caseRow, ...materializeCaseFacts(resolutions) };
+  const contradictions = passport.checks.filter((item) => item.status === 'conflict').map((item) => item.detailEn);
   const readiness = evaluateReadiness({
-    amount: Number(effectiveCaseRow.amount || 0), occurredAt: String(effectiveCaseRow.occurred_at || ''), reference: String(effectiveCaseRow.reference || ''), bank: String(effectiveCaseRow.bank || ''), recipient: String(effectiveCaseRow.recipient || ''), narrative: String(effectiveCaseRow.narrative_input || ''), evidence: evidenceRows.results || [], contradictions,
+    amount: Number(effectiveCaseRow.amount || 0), occurredAt: String(effectiveCaseRow.occurred_at || ''), reference: String(effectiveCaseRow.reference || ''), bank: String(effectiveCaseRow.bank || ''), recipient: String(effectiveCaseRow.recipient || ''), narrative: String(effectiveCaseRow.narrative_input || ''), evidence, contradictions,
   });
-  return { case: effectiveCaseRow, evidence: evidenceRows.results, chronology: chronology.results, milestones: milestones.results, exports: exports.results, readiness, observations: passportDataResult.observations, resolutions: passportDataResult.resolutions, passport: passportDataResult.passport, findings: findings.results, custody: custody.results, intake, profile, submission, requests: requests.results, requestResponses: requestResponses.results, events: events.results, meta: { caseRevision: Number(caseRow.revision || 1), savedAt: Number(caseRow.updated_at || Date.now()) } };
+  return { case: effectiveCaseRow, evidence, chronology: chronology.results || [], milestones: milestones.results || [], exports: exports.results || [], readiness, observations, resolutions, passport, findings: findings.results || [], custody: custody.results || [], intake, profile, submission, requests: requests.results || [], requestResponses: requestResponses.results || [], events: events.results || [], meta: { caseRevision: Number(caseRow.revision || 1), savedAt: Number(caseRow.updated_at || Date.now()) } };
 }
 
 export async function caseFingerprint(sessionId: string, caseId: string) {
