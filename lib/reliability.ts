@@ -58,13 +58,16 @@ export async function enforceRateLimit(request: Request, scope: string, limit: n
   const raw = `${request.headers.get('cf-connecting-ip') || 'local'}|${request.headers.get('user-agent') || 'unknown'}`;
   const bucketKey = await domainHmac('first30:rate-limit:v1', raw);
   const now = Date.now();
-  const row = await env.DB.prepare('SELECT count, window_start FROM rate_limit_buckets WHERE bucket_key = ? AND scope = ?').bind(bucketKey, scope).first<{ count: number; window_start: number }>();
-  if (!row || now - Number(row.window_start) >= windowMs) {
-    await env.DB.prepare('INSERT INTO rate_limit_buckets (bucket_key, scope, window_start, count, expires_at) VALUES (?, ?, ?, 1, ?) ON CONFLICT(bucket_key, scope) DO UPDATE SET window_start = excluded.window_start, count = 1, expires_at = excluded.expires_at').bind(bucketKey, scope, now, now + windowMs).run();
-    return;
-  }
-  if (Number(row.count) >= limit) throw problem('RATE_LIMITED', 'Please wait a moment before trying again.', 429, true);
-  await env.DB.prepare('UPDATE rate_limit_buckets SET count = count + 1 WHERE bucket_key = ? AND scope = ?').bind(bucketKey, scope).run();
+  const row = await env.DB.prepare(`
+    INSERT INTO rate_limit_buckets (bucket_key, scope, window_start, count, expires_at)
+    VALUES (?, ?, ?, 1, ?)
+    ON CONFLICT(bucket_key, scope) DO UPDATE SET
+      count = CASE WHEN ? - window_start >= ? THEN 1 ELSE count + 1 END,
+      window_start = CASE WHEN ? - window_start >= ? THEN ? ELSE window_start END,
+      expires_at = ?
+    RETURNING count
+  `).bind(bucketKey, scope, now, now + windowMs, now, windowMs, now, windowMs, now, now + windowMs).first<{ count: number }>();
+  if (Number(row?.count || 0) > limit) throw problem('RATE_LIMITED', 'Please wait a moment before trying again.', 429, true);
 }
 
 export async function beginIdempotency(request: Request, sessionId: string, scope: string, input: unknown) {

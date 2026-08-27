@@ -140,8 +140,15 @@ export async function getSessionId(request: Request) {
   if (!raw) return null;
   const [id, signature] = raw.split('.');
   if (!id || !signature || !await verifyHmac(id, signature)) return null;
-  const row = await env.DB.prepare('SELECT id FROM demo_sessions WHERE id = ? AND expires_at > ?').bind(id, Date.now()).first();
-  return row ? id : null;
+  const row = await env.DB.prepare('SELECT id, expires_at FROM demo_sessions WHERE id = ?').bind(id).first<{ id: string; expires_at: number }>();
+  if (!row) return null;
+  if (Number(row.expires_at) <= Date.now()) {
+    // Cleanup is deliberately paid only by an expired session. Making every
+    // new citizen wait for a full cross-table purge caused long hosted logins.
+    await purgeExpired();
+    return null;
+  }
+  return id;
 }
 
 export async function requireSession(request: Request) {
@@ -152,7 +159,7 @@ export async function requireSession(request: Request) {
 }
 
 export async function createSession() {
-  await ensureSchema(); await purgeExpired();
+  await ensureSchema();
   const id = crypto.randomUUID(); const now = Date.now();
   await env.DB.prepare('INSERT INTO demo_sessions (id, persona_id, locale, ai_calls, created_at, expires_at) VALUES (?, ?, ?, 0, ?, ?)')
     .bind(id, 'sunita', 'en', now, now + DAY).run();
