@@ -176,6 +176,7 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
   const zip = zipSync(files, { level: 6 });
   const ownedZip = new Uint8Array(zip.byteLength); ownedZip.set(zip);
   const blob = new Blob([ownedZip.buffer], { type: 'application/zip' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
-  anchor.href = url; anchor.download = `FIRST30-Evidence-Passport-${String(result.manifest.verificationCode)}.zip`; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 2_000);
-  return result.manifest;
+  const filename = `FIRST30-Evidence-Passport-${String(result.manifest.verificationCode)}.zip`;
+  anchor.href = url; anchor.download = filename; anchor.hidden = true; document.body.append(anchor); anchor.click(); anchor.remove();
+  return { manifest: result.manifest, downloadUrl: url, filename };
 }

@@ -7,6 +7,7 @@ import { assertMutationSecurity, decryptPrivateJson, problem } from './reliabili
 
 const DAY = 24 * 60 * 60 * 1000;
 const COOKIE = 'f30_session';
+const CURRENT_SCHEMA_VERSION = 5;
 
 // The original demo schema is retained for additive migration compatibility.
 // FIRST30's current routes never create financial hold or restoration records.
@@ -81,13 +82,18 @@ let schemaReady: Promise<void> | null = null;
 export async function ensureSchema() {
   schemaReady ??= (async () => {
     await env.DB.prepare('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL)').run();
-    const applied = await env.DB.prepare('SELECT version FROM schema_migrations WHERE version = 4').first();
+    const applied = await env.DB.prepare('SELECT version FROM schema_migrations WHERE version = ?').bind(CURRENT_SCHEMA_VERSION).first();
     if (applied) return;
     await env.DB.batch(schemaStatements.map((sql) => env.DB.prepare(sql)));
-    const columns = await env.DB.prepare('PRAGMA table_info(cases)').all<{ name: string }>();
-    if (!(columns.results || []).some((column) => column.name === 'revision')) await env.DB.prepare('ALTER TABLE cases ADD COLUMN revision INTEGER NOT NULL DEFAULT 1').run();
+    const caseColumns = await env.DB.prepare('PRAGMA table_info(cases)').all<{ name: string }>();
+    if (!(caseColumns.results || []).some((column) => column.name === 'revision')) await env.DB.prepare('ALTER TABLE cases ADD COLUMN revision INTEGER NOT NULL DEFAULT 1').run();
+    const exportColumns = await env.DB.prepare('PRAGMA table_info(case_exports)').all<{ name: string }>();
+    if (!(exportColumns.results || []).some((column) => column.name === 'manifest_json')) {
+      await env.DB.prepare("ALTER TABLE case_exports ADD COLUMN manifest_json TEXT NOT NULL DEFAULT '{}'").run();
+      await env.DB.prepare("UPDATE case_exports SET content_fingerprint = 'legacy:' || id || ':' || content_fingerprint WHERE manifest_json = '{}'").run();
+    }
     await env.DB.prepare('PRAGMA optimize').run();
-    await env.DB.prepare('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (4, ?)').bind(Date.now()).run();
+    await env.DB.prepare('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)').bind(CURRENT_SCHEMA_VERSION, Date.now()).run();
   })();
   try { await schemaReady; } catch (error) { schemaReady = null; throw error; }
 }
