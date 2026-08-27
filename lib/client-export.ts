@@ -151,6 +151,7 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
     conflicts: useHindi ? 'अंतर की समीक्षा बाकी' : 'differences need review',
     complaintEn: 'Complaint - English',
     complaintHi: 'शिकायत - हिंदी',
+    prepared: useHindi ? 'तैयार शिकायत' : 'Prepared complaint',
     limitation: useHindi ? 'यह रसीद केवल FIRST30 के प्रदर्शन में बनाई गई है। इसे NCRP, पुलिस, बैंक या किसी सरकारी प्रणाली में जमा नहीं किया गया है।' : 'This receipt was created only inside the FIRST30 demonstration. It was not submitted to NCRP, police, a bank or any government system.',
   };
 
@@ -159,20 +160,18 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
     const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('PDF canvas unavailable.');
     ctx.fillStyle = '#f7f2e8'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#ef624c'; ctx.fillRect(0, 0, canvas.width, 18);
-    ctx.fillStyle = '#10283c'; ctx.fillRect(0, 18, canvas.width, continuation ? 210 : 340);
+    ctx.fillStyle = '#10283c'; ctx.fillRect(0, 18, canvas.width, continuation ? 156 : 340);
     ctx.fillStyle = '#ffffff'; ctx.font = '900 34px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText('30', 78, 92);
     ctx.font = '800 27px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText('FIRST30', 142, 91);
-    ctx.fillStyle = '#abc0ce'; ctx.font = '700 16px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText(copy.independent.toUpperCase(), 78, 124);
+    ctx.fillStyle = '#abc0ce'; ctx.font = '700 16px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText(continuation ? copy.prepared.toUpperCase() : copy.independent.toUpperCase(), 78, 124);
     ctx.fillStyle = '#ef624c'; fillRoundedRect(ctx, 822, 62, 338, 52, 26);
     ctx.fillStyle = '#ffffff'; ctx.font = '800 16px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(copy.mock, 991, 95); ctx.textAlign = 'left';
-    if (continuation) {
-      ctx.fillStyle = '#ffffff'; ctx.font = '800 38px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText(copy.receipt, 78, 172);
-    } else {
+    if (!continuation) {
       ctx.fillStyle = '#ffffff'; ctx.font = '800 58px Georgia, "Noto Sans Devanagari", serif'; ctx.fillText(copy.receipt, 78, 220);
       ctx.fillStyle = '#abc0ce'; ctx.font = '700 17px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText(copy.acknowledgement.toUpperCase(), 78, 266);
       ctx.fillStyle = '#ffffff'; ctx.font = '900 30px ui-monospace, SFMono-Regular, monospace'; ctx.fillText(ack, 78, 309);
     }
-    return { canvas, ctx, pageNumber, y: continuation ? 275 : 410 };
+    return { canvas, ctx, pageNumber, y: continuation ? 222 : 410 };
   }
 
   async function finishPage(page: ReturnType<typeof startPage>) {
@@ -186,12 +185,23 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
 
   let page = startPage(1);
   const ensure = async (height: number) => { if (page.y + height <= 1595) return; await finishPage(page); page = startPage(page.pageNumber + 1, true); };
+  const nextPage = async () => { await finishPage(page); page = startPage(page.pageNumber + 1, true); };
   const heading = async (title: string) => { await ensure(72); page.ctx.fillStyle = '#10283c'; page.ctx.font = '800 24px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(title, 78, page.y); page.y += 42; };
   const paragraph = async (text: string, color = '#344b5a') => {
     page.ctx.font = '500 21px system-ui, "Noto Sans Devanagari", sans-serif';
     const lines = wrapText(page.ctx, text || 'Unknown', 1060);
+    const paragraphHeight = lines.length * 31 + 18;
+    if (paragraphHeight <= 1370) await ensure(paragraphHeight);
     for (const line of lines) { await ensure(34); page.ctx.fillStyle = color; page.ctx.font = '500 21px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(line, 78, page.y); page.y += 31; }
     page.y += 18;
+  };
+  const textSection = async (title: string, text: string) => {
+    page.ctx.font = '500 21px system-ui, "Noto Sans Devanagari", sans-serif';
+    const lines = wrapText(page.ctx, text || 'Unknown', 1060);
+    const sectionHeight = 42 + lines.length * 31 + 18;
+    if (sectionHeight <= 1370) await ensure(sectionHeight);
+    await heading(title);
+    await paragraph(text);
   };
 
   page.ctx.fillStyle = '#ffffff'; fillRoundedRect(page.ctx, 78, page.y, 1084, 132, 14);
@@ -210,15 +220,17 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
     details.slice(index, index + 2).forEach(([label, value], column) => { const x = 78 + column * 552; page.ctx.fillStyle = '#ffffff'; fillRoundedRect(page.ctx, x, rowY, 532, 94, 10); page.ctx.fillStyle = '#6c7a82'; page.ctx.font = '800 14px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(label.toUpperCase(), x + 22, rowY + 30); page.ctx.fillStyle = '#10283c'; page.ctx.font = '800 21px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(String(value).slice(0, 42), x + 22, rowY + 65); });
     page.y += 110;
   }
+  page.y += 12;
 
   await heading(copy.evidence);
   page.ctx.fillStyle = '#e8efe9'; fillRoundedRect(page.ctx, 78, page.y, 1084, 92, 10);
   const evidenceLine = `${bundle.evidence.length} ${copy.files}   ·   ${bundle.passport.counts.passed} ${copy.checks}   ·   ${bundle.passport.counts.conflicts} ${copy.conflicts}`;
   page.ctx.fillStyle = '#245d4d'; page.ctx.font = '800 20px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(evidenceLine, 104, page.y + 55); page.y += 130;
 
-  await heading(copy.statement); await paragraph(String(row.narrative_input || row.complaint_en || 'Unknown'));
-  await heading(copy.complaintEn); await paragraph(String(row.complaint_en || 'Unknown'));
-  await heading(copy.complaintHi); await paragraph(String(row.complaint_hi || 'Unknown'));
+  await textSection(copy.statement, String(row.narrative_input || row.complaint_en || 'Unknown'));
+  await nextPage();
+  await textSection(copy.complaintEn, String(row.complaint_en || 'Unknown'));
+  await textSection(copy.complaintHi, String(row.complaint_hi || 'Unknown'));
   await ensure(145); page.ctx.fillStyle = '#fde5de'; fillRoundedRect(page.ctx, 78, page.y, 1084, 112, 10); page.ctx.fillStyle = '#9a392b'; page.ctx.font = '800 17px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(copy.mock, 104, page.y + 33); page.ctx.font = '600 17px system-ui, "Noto Sans Devanagari", sans-serif';
   const limitationLines = wrapText(page.ctx, copy.limitation, 1028); limitationLines.slice(0, 3).forEach((line, index) => page.ctx.fillText(line, 104, page.y + 62 + index * 23)); page.y += 135;
   await finishPage(page);
@@ -226,12 +238,16 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
 }
 
 export async function downloadComplaintReceipt(bundle: ReceiptBundle, locale = 'en') {
-  const pdf = await jpegPagesToPdf(await renderComplaintReceiptPages(bundle, locale));
+  const pdf = await buildComplaintReceiptPdf(bundle, locale);
   const acknowledgement = String(bundle.submission?.acknowledgement || 'F30-DEMO');
   const blob = new Blob([pdf.buffer as ArrayBuffer], { type: 'application/pdf' }); const url = URL.createObjectURL(blob);
   const filename = `FIRST30-complaint-receipt-${acknowledgement}.pdf`;
   const link = document.createElement('a'); link.href = url; link.download = filename; link.hidden = true; document.body.append(link); link.click(); link.remove();
   return { downloadUrl: url, filename };
+}
+
+export async function buildComplaintReceiptPdf(bundle: ReceiptBundle, locale = 'en') {
+  return jpegPagesToPdf(await renderComplaintReceiptPages(bundle, locale));
 }
 
 export async function buildResponsePackage(caseId: string, bundle: Bundle) {
