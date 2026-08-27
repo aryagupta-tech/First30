@@ -6,6 +6,7 @@ import { api } from './client-api';
 
 type Row = Record<string, string | number | null>;
 type Bundle = { case: Row; evidence: Row[]; chronology: Row[]; observations: Array<Record<string, unknown>>; resolutions: Array<Record<string, unknown>>; findings: Row[]; custody: Row[]; passport: { coverage: { present: number; total: number }; counts: { passed: number; conflicts: number; missing: number; unknownFacts: number }; checks: Array<{ status: string; titleEn: string; detailEn: string }>; facts: Array<{ field: string; resolution: { value?: string; resolutionType?: string } | null; observations: Array<{ filename?: string; value?: string }> }> } };
+type ReceiptBundle = Bundle & { profile?: Row | null; submission?: Row | null; events?: Row[] };
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
   const words = text.replace(/\n/g, ' \n ').split(/\s+/); const lines: string[] = []; let line = '';
@@ -111,6 +112,126 @@ async function jpegPagesToPdf(blobs: Blob[]) {
   const xrefOffset = offset; const xref = [`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`, ...offsets.slice(1).map((value) => `${String(value).padStart(10, '0')} 00000 n \n`)].join('');
   chunks.push(encoder.encode(`${xref}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`));
   return concat(chunks);
+}
+
+function receiptStatus(status: unknown, locale: string) {
+  const labels: Record<string, [string, string]> = {
+    submitted: ['Report received', 'रिपोर्ट प्राप्त हुई'],
+    action_required: ['Additional evidence requested', 'अतिरिक्त प्रमाण माँगा गया'],
+    evidence_received: ['Additional evidence received', 'अतिरिक्त प्रमाण प्राप्त हुआ'],
+  };
+  const label = labels[String(status || '')] || ['Report recorded', 'रिपोर्ट दर्ज हुई'];
+  return label[locale === 'hi' ? 1 : 0];
+}
+
+function fillRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  ctx.beginPath(); ctx.roundRect(x, y, width, height, radius); ctx.fill();
+}
+
+async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string) {
+  const row = bundle.case; const pages: Blob[] = []; const ack = String(bundle.submission?.acknowledgement || 'F30-DEMO-PENDING');
+  const createdAt = Number(bundle.submission?.submitted_at || bundle.submission?.created_at || row.updated_at || Date.now());
+  const useHindi = locale === 'hi';
+  const copy = {
+    receipt: useHindi ? 'शिकायत रसीद' : 'Complaint receipt',
+    independent: useHindi ? 'स्वतंत्र रिपोर्टिंग प्रोटोटाइप' : 'Independent reporting prototype',
+    mock: useHindi ? 'मॉक - आधिकारिक सबमिशन नहीं' : 'MOCK - NOT AN OFFICIAL SUBMISSION',
+    acknowledgement: useHindi ? 'FIRST30 पावती संख्या' : 'FIRST30 acknowledgement',
+    summary: useHindi ? 'घटना का सारांश' : 'Incident summary',
+    amount: useHindi ? 'रिपोर्ट की गई राशि' : 'Reported amount',
+    channel: useHindi ? 'भुगतान माध्यम' : 'Payment channel',
+    reference: useHindi ? 'लेन-देन संदर्भ' : 'Transaction reference',
+    institution: useHindi ? 'बैंक / वॉलेट' : 'Bank / wallet',
+    time: useHindi ? 'घटना का समय' : 'Incident time',
+    status: useHindi ? 'वर्तमान स्थिति' : 'Current status',
+    statement: useHindi ? 'नागरिक का विवरण' : 'Citizen statement',
+    evidence: useHindi ? 'प्रमाण की स्थिति' : 'Evidence overview',
+    files: useHindi ? 'फ़ाइलें संलग्न' : 'files attached',
+    checks: useHindi ? 'जाँच पास' : 'checks passed',
+    conflicts: useHindi ? 'विरोध समीक्षा के लिए सुरक्षित' : 'conflicts preserved for review',
+    complaintEn: 'Structured complaint - English',
+    complaintHi: 'संरचित शिकायत - हिंदी',
+    limitation: useHindi ? 'यह रसीद केवल FIRST30 के काल्पनिक प्रदर्शन में बनाई गई है। इसे NCRP, पुलिस, बैंक या किसी सरकारी प्रणाली में जमा नहीं किया गया है।' : 'This receipt was created only inside the FIRST30 synthetic demonstration. It was not submitted to NCRP, police, a bank or any government system.',
+  };
+
+  function startPage(pageNumber: number, continuation = false) {
+    const canvas = document.createElement('canvas'); canvas.width = 1240; canvas.height = 1754;
+    const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('PDF canvas unavailable.');
+    ctx.fillStyle = '#f7f2e8'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ef624c'; ctx.fillRect(0, 0, canvas.width, 18);
+    ctx.fillStyle = '#10283c'; ctx.fillRect(0, 18, canvas.width, continuation ? 210 : 340);
+    ctx.fillStyle = '#ffffff'; ctx.font = '900 34px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText('30', 78, 92);
+    ctx.font = '800 27px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText('FIRST30', 142, 91);
+    ctx.fillStyle = '#abc0ce'; ctx.font = '700 16px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText(copy.independent.toUpperCase(), 78, 124);
+    ctx.fillStyle = '#ef624c'; fillRoundedRect(ctx, 822, 62, 338, 52, 26);
+    ctx.fillStyle = '#ffffff'; ctx.font = '800 16px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(copy.mock, 991, 95); ctx.textAlign = 'left';
+    if (continuation) {
+      ctx.fillStyle = '#ffffff'; ctx.font = '800 38px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText(copy.receipt, 78, 172);
+    } else {
+      ctx.fillStyle = '#ffffff'; ctx.font = '800 58px Georgia, "Noto Sans Devanagari", serif'; ctx.fillText(copy.receipt, 78, 220);
+      ctx.fillStyle = '#abc0ce'; ctx.font = '700 17px system-ui, "Noto Sans Devanagari", sans-serif'; ctx.fillText(copy.acknowledgement.toUpperCase(), 78, 266);
+      ctx.fillStyle = '#ffffff'; ctx.font = '900 30px ui-monospace, SFMono-Regular, monospace'; ctx.fillText(ack, 78, 309);
+    }
+    return { canvas, ctx, pageNumber, y: continuation ? 275 : 410 };
+  }
+
+  async function finishPage(page: ReturnType<typeof startPage>) {
+    const { canvas, ctx, pageNumber } = page;
+    ctx.strokeStyle = '#d4cec2'; ctx.beginPath(); ctx.moveTo(78, 1652); ctx.lineTo(1162, 1652); ctx.stroke();
+    ctx.fillStyle = '#62717a'; ctx.font = '600 15px system-ui, "Noto Sans Devanagari", sans-serif';
+    ctx.fillText('FIRST30 · Synthetic demonstration · Evidence integrity and internal consistency only', 78, 1692);
+    ctx.textAlign = 'right'; ctx.fillText(`Page ${pageNumber}`, 1162, 1692); ctx.textAlign = 'left';
+    pages.push(await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not render complaint receipt.')), 'image/jpeg', 0.94)));
+  }
+
+  let page = startPage(1);
+  const ensure = async (height: number) => { if (page.y + height <= 1595) return; await finishPage(page); page = startPage(page.pageNumber + 1, true); };
+  const heading = async (title: string) => { await ensure(72); page.ctx.fillStyle = '#10283c'; page.ctx.font = '800 24px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(title, 78, page.y); page.y += 42; };
+  const paragraph = async (text: string, color = '#344b5a') => {
+    page.ctx.font = '500 21px system-ui, "Noto Sans Devanagari", sans-serif';
+    const lines = wrapText(page.ctx, text || 'Unknown', 1060);
+    for (const line of lines) { await ensure(34); page.ctx.fillStyle = color; page.ctx.font = '500 21px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(line, 78, page.y); page.y += 31; }
+    page.y += 18;
+  };
+
+  page.ctx.fillStyle = '#ffffff'; fillRoundedRect(page.ctx, 78, page.y, 1084, 132, 14);
+  const statusItems = [[copy.status, receiptStatus(bundle.submission?.status, locale)], [useHindi ? 'बनने का समय' : 'Created', new Date(createdAt).toLocaleString(useHindi ? 'hi-IN' : 'en-IN')]];
+  statusItems.forEach(([label, value], index) => { const x = 108 + index * 525; page.ctx.fillStyle = '#6c7a82'; page.ctx.font = '800 15px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(label.toUpperCase(), x, page.y + 42); page.ctx.fillStyle = '#10283c'; page.ctx.font = '800 24px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(value, x, page.y + 83); });
+  page.y += 178;
+
+  await heading(copy.summary);
+  const details = [
+    [copy.amount, `₹${Number(row.amount || 0).toLocaleString('en-IN')}`], [copy.channel, String(row.channel || 'Unknown').replaceAll('_', ' ').toUpperCase()],
+    [copy.reference, String(row.reference || 'Unknown')], [copy.institution, String(row.bank || 'Unknown')],
+    [copy.time, String(row.occurred_at || 'Unknown')], [useHindi ? 'प्राप्तकर्ता' : 'Recipient', String(row.recipient || 'Unknown')],
+  ];
+  for (let index = 0; index < details.length; index += 2) {
+    await ensure(112); const rowY = page.y;
+    details.slice(index, index + 2).forEach(([label, value], column) => { const x = 78 + column * 552; page.ctx.fillStyle = '#ffffff'; fillRoundedRect(page.ctx, x, rowY, 532, 94, 10); page.ctx.fillStyle = '#6c7a82'; page.ctx.font = '800 14px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(label.toUpperCase(), x + 22, rowY + 30); page.ctx.fillStyle = '#10283c'; page.ctx.font = '800 21px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(String(value).slice(0, 42), x + 22, rowY + 65); });
+    page.y += 110;
+  }
+
+  await heading(copy.evidence);
+  page.ctx.fillStyle = '#e8efe9'; fillRoundedRect(page.ctx, 78, page.y, 1084, 92, 10);
+  const evidenceLine = `${bundle.evidence.length} ${copy.files}   ·   ${bundle.passport.counts.passed} ${copy.checks}   ·   ${bundle.passport.counts.conflicts} ${copy.conflicts}`;
+  page.ctx.fillStyle = '#245d4d'; page.ctx.font = '800 20px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(evidenceLine, 104, page.y + 55); page.y += 130;
+
+  await heading(copy.statement); await paragraph(String(row.narrative_input || row.complaint_en || 'Unknown'));
+  await heading(copy.complaintEn); await paragraph(String(row.complaint_en || 'Unknown'));
+  await heading(copy.complaintHi); await paragraph(String(row.complaint_hi || 'Unknown'));
+  await ensure(145); page.ctx.fillStyle = '#fde5de'; fillRoundedRect(page.ctx, 78, page.y, 1084, 112, 10); page.ctx.fillStyle = '#9a392b'; page.ctx.font = '800 17px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(copy.mock, 104, page.y + 33); page.ctx.font = '600 17px system-ui, "Noto Sans Devanagari", sans-serif';
+  const limitationLines = wrapText(page.ctx, copy.limitation, 1028); limitationLines.slice(0, 3).forEach((line, index) => page.ctx.fillText(line, 104, page.y + 62 + index * 23)); page.y += 135;
+  await finishPage(page);
+  return pages;
+}
+
+export async function downloadComplaintReceipt(bundle: ReceiptBundle, locale = 'en') {
+  const pdf = await jpegPagesToPdf(await renderComplaintReceiptPages(bundle, locale));
+  const acknowledgement = String(bundle.submission?.acknowledgement || 'F30-DEMO');
+  const blob = new Blob([pdf.buffer as ArrayBuffer], { type: 'application/pdf' }); const url = URL.createObjectURL(blob);
+  const filename = `FIRST30-complaint-receipt-${acknowledgement}.pdf`;
+  const link = document.createElement('a'); link.href = url; link.download = filename; link.hidden = true; document.body.append(link); link.click(); link.remove();
+  return { downloadUrl: url, filename };
 }
 
 export async function buildResponsePackage(caseId: string, bundle: Bundle) {
