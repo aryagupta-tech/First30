@@ -2,9 +2,7 @@ import { strFromU8, unzipSync } from 'fflate';
 import { signedManifestSchema } from './contracts';
 import { sha256Hex, stableJson } from './response-file';
 
-export async function verifyArchiveLocally(input: ArrayBuffer | Uint8Array) {
-  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
-  const archive = unzipSync(bytes);
+export async function verifyPackageFilesLocally(archive: Record<string, Uint8Array>) {
   if (!archive['manifest.json']) throw new Error('This is not a complete FIRST30 report package.');
   const manifest = signedManifestSchema.parse(JSON.parse(strFromU8(archive['manifest.json'])));
   const { manifestHash, signature, ...unsigned } = manifest;
@@ -16,4 +14,25 @@ export async function verifyArchiveLocally(input: ArrayBuffer | Uint8Array) {
   const expectedPaths = new Set([...manifest.files.map((entry) => entry.path), 'manifest.json']);
   for (const path of Object.keys(archive)) if (!expectedPaths.has(path) && !path.endsWith('/')) failedFiles.push(path);
   return { manifest, calculatedHash, failedFiles: [...new Set(failedFiles)], intact: calculatedHash === manifestHash && failedFiles.length === 0, signature };
+}
+
+export async function verifyArchiveLocally(input: ArrayBuffer | Uint8Array) {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  return verifyPackageFilesLocally(unzipSync(bytes));
+}
+
+export async function verifyExtractedFolderLocally(files: File[]) {
+  const paths = files.map((file) => file.webkitRelativePath || file.name);
+  const manifestPath = paths.find((path) => path === 'manifest.json' || path.endsWith('/manifest.json'));
+  if (!manifestPath) throw new Error('This folder does not contain a complete FIRST30 report.');
+  const root = manifestPath.slice(0, -'manifest.json'.length);
+  const archive: Record<string, Uint8Array> = {};
+  await Promise.all(files.map(async (file, index) => {
+    const path = paths[index];
+    if (!path.startsWith(root)) return;
+    const relativePath = path.slice(root.length);
+    if (!relativePath || relativePath === '.DS_Store' || relativePath.endsWith('/.DS_Store') || relativePath.includes('/__MACOSX/')) return;
+    archive[relativePath] = new Uint8Array(await file.arrayBuffer());
+  }));
+  return verifyPackageFilesLocally(archive);
 }

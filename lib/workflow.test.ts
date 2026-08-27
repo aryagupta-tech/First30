@@ -4,7 +4,7 @@ import { SAMPLE_BANK_STATEMENT_TEXT, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAM
 import { derivePassport, materializeCaseFacts, normalizeFact, observationsFromText } from './evidence-passport';
 import { detectImageMime, findContradictions, parseReceiptText, sha256Hex, stableJson } from './response-file';
 import { canTransition, caseStatusFor, evaluateReadiness, isExportable } from './workflow';
-import { verifyArchiveLocally } from './package-verification';
+import { verifyArchiveLocally, verifyExtractedFolderLocally } from './package-verification';
 
 describe('local receipt processing', () => {
   it('extracts the judged sample without an external service', () => {
@@ -142,6 +142,12 @@ describe('verifiable package contracts', () => {
     const manifestHash = await sha256Hex(stableJson(unsigned)); const manifest = { ...unsigned, manifestHash, signature: 's'.repeat(40) };
     const valid = zipSync({ ...archiveFiles, 'manifest.json': strToU8(JSON.stringify(manifest)) });
     expect((await verifyArchiveLocally(valid)).intact).toBe(true);
+    const extracted = Object.entries({ ...archiveFiles, 'manifest.json': strToU8(JSON.stringify(manifest)) }).map(([path, bytes]) => {
+      const file = new File([bytes as BlobPart], path.split('/').pop() || path);
+      Object.defineProperty(file, 'webkitRelativePath', { value: `FIRST30-report/${path}` });
+      return file;
+    });
+    expect((await verifyExtractedFolderLocally(extracted)).intact).toBe(true);
     const altered = zipSync({ ...archiveFiles, 'passport.json': strToU8('{"changed":true}'), 'manifest.json': strToU8(JSON.stringify(manifest)) });
     const alteredResult = await verifyArchiveLocally(altered);
     expect(alteredResult.intact).toBe(false);

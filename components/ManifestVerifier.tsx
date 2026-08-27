@@ -4,21 +4,31 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Header, SafetyFooter } from './Header';
 import { useLocale } from './LocaleProvider';
-import { verifyArchiveLocally } from '@/lib/package-verification';
+import { verifyArchiveLocally, verifyExtractedFolderLocally } from '@/lib/package-verification';
 
 type Result = { status: 'valid' | 'altered' | 'unknown'; createdAt?: number; version?: number; fileCount?: number; checkedFiles?: number; failedFiles?: string[] };
 
 export function ManifestVerifier() {
   const { pick } = useLocale(); const [result, setResult] = useState<Result | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  async function verify(file: File) {
+  async function finishVerification(local: Awaited<ReturnType<typeof verifyArchiveLocally>>) {
+    const { manifest, calculatedHash, failedFiles, intact, signature } = local;
+    if (!intact) { setResult({ status: 'altered', checkedFiles: manifest.files.length, failedFiles }); return; }
+    const response = await fetch('/api/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verificationCode: manifest.verificationCode, manifestHash: calculatedHash, signature }) });
+    const data = await response.json() as Result & { error?: string }; if (!response.ok) throw new Error(data.error || 'Verification failed.');
+    setResult({ ...data, checkedFiles: manifest.files.length, failedFiles: [] });
+  }
+  async function verifyZip(file: File) {
     setBusy(true); setError(''); setResult(null);
     try {
-      const { manifest, calculatedHash, failedFiles, intact, signature } = await verifyArchiveLocally(await file.arrayBuffer());
-      if (!intact) { setResult({ status: 'altered', checkedFiles: manifest.files.length, failedFiles }); return; }
-      const response = await fetch('/api/verify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verificationCode: manifest.verificationCode, manifestHash: calculatedHash, signature }) });
-      const data = await response.json() as Result & { error?: string }; if (!response.ok) throw new Error(data.error || 'Verification failed.');
-      setResult({ ...data, checkedFiles: manifest.files.length, failedFiles: [] });
-    } catch { setError(pick('We could not check this file. Choose the complete report you downloaded from FIRST30 and try again.', 'हम इस फ़ाइल की जाँच नहीं कर सके। FIRST30 से डाउनलोड की गई पूरी रिपोर्ट चुनें और फिर प्रयास करें।')); }
+      await finishVerification(await verifyArchiveLocally(await file.arrayBuffer()));
+    } catch { setError(pick('We could not check this file. Choose the complete report you downloaded from FIRST30 and try again.')); }
+    finally { setBusy(false); }
+  }
+  async function verifyFolder(files: File[]) {
+    setBusy(true); setError(''); setResult(null);
+    try {
+      await finishVerification(await verifyExtractedFolderLocally(files));
+    } catch { setError(pick('We could not check this folder. Choose the folder created when you opened the FIRST30 ZIP and try again.')); }
     finally { setBusy(false); }
   }
   const resultTitle = result?.status === 'valid'
@@ -35,7 +45,7 @@ export function ManifestVerifier() {
   return <main className="site-shell"><Header compact /><section className="verify-page">
     <Link href="/" className="back-link">← {pick('FIRST30 home', 'FIRST30 होम')}</Link>
     <div className="verify-hero"><p className="eyebrow">{pick('Check a downloaded report', 'डाउनलोड की गई रिपोर्ट जाँचें')}</p><h1>{pick('Check that your report is unchanged', 'जाँचें कि आपकी रिपोर्ट बदली नहीं है')}</h1><p>{pick('Use this before you share your downloaded report, or when someone sends it back to you. FIRST30 checks whether anything inside was changed after download. Your screenshots stay on this device.', 'डाउनलोड की गई रिपोर्ट साझा करने से पहले, या किसी से वापस मिलने पर इसका उपयोग करें। FIRST30 जाँचता है कि डाउनलोड के बाद अंदर कुछ बदला या नहीं। आपके स्क्रीनशॉट इसी डिवाइस पर रहते हैं।')}</p></div>
-    <label className="manifest-drop"><span className="verify-mark">✓</span><strong>{busy ? pick('Checking your report…', 'आपकी रिपोर्ट जाँची जा रही है…') : pick('Choose your downloaded FIRST30 report', 'अपनी डाउनलोड की गई FIRST30 रिपोर्ट चुनें')}</strong><small>{pick('Choose the file you saved after finishing your report. Your screenshots stay private.', 'रिपोर्ट पूरी करने के बाद सहेजी गई फ़ाइल चुनें। आपके स्क्रीनशॉट निजी रहते हैं।')}</small><input type="file" accept="application/zip,.zip" disabled={busy} onChange={(event) => { const selected = event.target.files?.[0]; if (selected) void verify(selected); event.target.value = ''; }} /></label>
+    <div className="manifest-drop"><span className="verify-mark">✓</span><strong>{busy ? pick('Checking your report…') : pick('Choose your downloaded FIRST30 report')}</strong><small>{pick('Choose the original ZIP or the folder created after opening it. You do not need to open the JSON files.')}</small><div className="verify-picker-actions"><label className="verify-picker-button verify-picker-primary">{pick('Choose ZIP file')}<input type="file" accept="application/zip,.zip" disabled={busy} onChange={(event) => { const selected = event.target.files?.[0]; if (selected) void verifyZip(selected); event.target.value = ''; }} /></label><span>{pick('or')}</span><label className="verify-picker-button">{pick('Choose extracted folder')}<input type="file" multiple disabled={busy} {...({ webkitdirectory: '', directory: '' } as Record<string, string>)} onChange={(event) => { const selected = Array.from(event.target.files || []); if (selected.length) void verifyFolder(selected); event.target.value = ''; }} /></label></div><p className="verify-privacy-note">{pick('The report is checked on this device. Your screenshots are not uploaded.')}</p></div>
     {result && <section className={`verification-result result-${result.status}`}><span>{result.status === 'valid' ? '✓' : result.status === 'altered' ? '!' : '?'}</span><div><p className="eyebrow">{pick('Check complete', 'जाँच पूरी')}</p><h2>{resultTitle}</h2><p>{resultBody}</p></div></section>}
     {error && <div className="error-banner" role="alert">{error}</div>}
     <section className="verification-boundary"><strong>{pick('What this check can tell you', 'यह जाँच आपको क्या बता सकती है')}</strong><p>{pick('It can tell you whether the downloaded files are still exactly as FIRST30 prepared them. It cannot confirm that the incident happened, that an authority accepted the report or that money will be recovered.', 'यह बता सकती है कि डाउनलोड की गई फ़ाइलें वैसी ही हैं जैसी FIRST30 ने तैयार की थीं। यह घटना की सत्यता, किसी संस्था द्वारा रिपोर्ट स्वीकार होना या पैसे वापस मिलने की पुष्टि नहीं करती।')}</p></section>
