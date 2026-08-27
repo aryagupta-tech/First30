@@ -122,11 +122,9 @@ docker compose --profile production up --build app-prod
 
 No OpenAI, OCR, government, police or bank API key is required. Never commit `.env` files or real evidence; the repository tracks only `.env.example` placeholders.
 
-## Hackathon submission material
+## Project overview
 
-- [`docs/final-demo-guide.md`](docs/final-demo-guide.md) — exact fictional data, upload order and a timed two-minute walkthrough.
-- [`docs/project-summary.md`](docs/project-summary.md) — submission-ready summary under 250 words.
-- [`docs/video-script.md`](docs/video-script.md) — compact recording checklist.
+See [`docs/project-summary.md`](docs/project-summary.md) for a concise description of the citizen journey and reporting engine.
 
 ## Validation
 
