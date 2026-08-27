@@ -475,6 +475,28 @@ button, a, input, select, textarea { outline-color: var(--orange); }
 .demo-credentials span { color: #b4b5af; background: #080907; border: 1px solid rgba(255,255,255,.07); }
 .login-error { color: #ffad93; }
 
+/* Safe custom evidence flow */
+.download-demo-link { appearance: none; padding: 0; font: inherit; cursor: pointer; }
+.evidence-choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0 12px; }
+.evidence-choice-row button { min-height: 88px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; padding: 16px 19px; border-radius: 16px; text-align: left; cursor: pointer; }
+.evidence-choice-row button strong { font-size: 12px; }
+.evidence-choice-row button small { font-size: 9px; line-height: 1.45; }
+.demo-download-button { color: white; background: #11120f; border: 1px solid rgba(255,255,255,.14); }
+.demo-download-button small { color: var(--muted); }
+.safe-data-confirmation { display: flex; align-items: flex-start; gap: 12px; margin: 12px 0 2px; padding: 16px 18px; color: #d9dad4; background: rgba(255,138,70,.075); border: 1px solid rgba(255,138,70,.22); border-radius: 14px; cursor: pointer; }
+.safe-data-confirmation input { width: 21px; height: 21px; flex: 0 0 auto; margin-top: 1px; accent-color: var(--orange); }
+.safe-data-confirmation span { display: grid; gap: 5px; }
+.safe-data-confirmation strong { font-size: 11px; }
+.safe-data-confirmation small { color: #b6b7b1; font-size: 9px; line-height: 1.55; }
+.evidence-upload-grid label.disabled, .followup-upload.disabled { opacity: .48; cursor: not-allowed; }
+.remove-evidence { justify-self: start; padding: 4px 0; color: #ff9c71; background: transparent; border: 0; font-size: 8px; font-weight: 800; cursor: pointer; }
+.followup-choices { display: grid; gap: 10px; }
+.followup-safe-check { display: flex; align-items: flex-start; gap: 8px; color: #bfc0ba; font-size: 9px; line-height: 1.45; cursor: pointer; }
+.followup-safe-check input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--orange); }
+.followup-upload { position: relative; width: 100%; color: white; background: #171814; cursor: pointer; }
+.followup-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+@media(max-width:700px){.evidence-choice-row{grid-template-columns:1fr}.evidence-choice-row button{width:100%}.safe-data-confirmation{padding:14px}.download-demo-link{min-height:44px;text-align:left}}
+
 /* Case list */
 .cases-page { width: min(1120px, calc(100% - 44px)); padding-top: 78px; }
 .cases-heading { align-items: flex-end; }

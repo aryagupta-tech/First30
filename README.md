@@ -14,7 +14,7 @@ FIRST30 is an independent, end-to-end redesign of the citizen journey for report
 | Lost progress or duplicate clicks | Resumable saves, optimistic revisions and idempotent commands |
 | Unclear or contradictory evidence | Local OCR, source-linked facts and visible conflict detection |
 | Uncertain backend processing | A citizen-safe receipt showing checks, steps, retries and audit-chain integrity |
-| Repeated evidence sharing | One signed Evidence Passport containing originals, provenance and checksums |
+| Repeated evidence sharing | One complete downloadable report containing the complaint, screenshots and case summary |
 
 > FIRST30 is a synthetic hackathon prototype. It does not contact NCRP, police, a bank or any government system, and it does not freeze or recover money. For a real financial cyber-fraud incident in India, call **1930**, contact the bank through a trusted number and never share an OTP.
 
@@ -23,10 +23,10 @@ FIRST30 is an independent, end-to-end redesign of the citizen journey for report
 | Works end to end | Clearly mocked |
 | --- | --- |
 | Session ownership, autosave and reload/resume | NCRP submission and acknowledgement |
-| Browser-local OCR and deterministic evidence analysis | Additional evidence request from an institution |
+| Browser-local reading and deterministic evidence analysis for custom safe test images | Additional evidence request from an institution |
 | D1 case records and private R2 evidence storage | Any police, bank or government response |
 | Encrypted snapshots, outbox processing and audit chain | Investigation, freezing or recovery of funds |
-| Signed ZIP/PDF export and tamper verification | Acceptance by an official authority |
+| Complete ZIP/PDF export and private change detection | Acceptance by an official authority |
 
 ## Complete demo journey
 
@@ -35,11 +35,17 @@ FIRST30 is an independent, end-to-end redesign of the citizen journey for report
    - OTP: `123456`
    - Citizen: Sunita Sharma
 2. Follow Easy Mode: protect yourself, enter payment details, review evidence, explain what happened, then review and submit.
-3. Load the three-file synthetic evidence set. FIRST30 analyses the receipt, scam chat and call log locally and deliberately exposes a ₹18,499 versus ₹18,400 mismatch.
+3. Either load the prepared case or download the safe demo kit and upload its receipt, scam chat and call log yourself. FIRST30 analyses custom fictional or fully redacted images locally and deliberately exposes a ₹18,499 versus ₹18,400 mismatch.
 4. Submit to the **mock** backend and track the `F30-DEMO-...` acknowledgement.
-5. Open “How FIRST30 processed this report” to inspect safe processing, answer the mock bank-statement request, download the signed Evidence Passport ZIP and verify it at `/verify`.
+5. Open “How FIRST30 kept this report safe”, answer the mock bank-statement request, download the complete report and check it at `/verify`.
 
-Progress is stored in D1 and evidence bytes in R2-compatible storage under an anonymous signed 24-hour session. A session can contain at most three synthetic cases.
+Progress is stored in D1 and evidence bytes in R2-compatible storage under an anonymous signed 24-hour session. A session can contain at most three demo cases.
+
+### Safe demo files
+
+The home page includes **Download safe demo files**. It creates `FIRST30-demo-evidence-kit.zip` in the browser with four fictional screenshots, a read-me and the exact test values. Upload the three main screenshots manually to demonstrate that FIRST30 processes selected files rather than filling a hard-coded form. Use the included bank statement for the follow-up step.
+
+The official hackathon rules prohibit real sensitive user data. Custom uploads therefore require an explicit confirmation that each file is fictional or fully redacted. Never upload real IDs, account numbers, card details, OTPs or private evidence to the public demo.
 
 ## Government-grade reporting engine
 
@@ -80,11 +86,11 @@ Easy Mode is the default reporting interface. It uses five plain-language steps,
 
 Evidence is never sent to an OCR or AI provider. Bundled Tesseract runs in a browser Web Worker using local worker, WebAssembly and English-language assets. Fixed parsers then identify and normalize Indian amounts, UTR/reference numbers, UPI IDs, phone numbers, institutions and timestamps. Deterministic rules mark each result as supported, missing or conflicting and preserve the source behind every fact.
 
-If OCR cannot read an image, the citizen can retry or transcribe visible text manually. The judged samples have a clearly labelled deterministic fallback so the demo remains reliable.
+If the local reader cannot read an image, the citizen can retry or transcribe visible text manually. The prepared samples have a clearly labelled deterministic fallback so the demo remains reliable; citizen-supplied safe test images never receive invented fallback values.
 
-## Evidence Passport
+## Complete downloadable report
 
-The downloadable ZIP contains original evidence, a bilingual PDF, `passport.json` and a signed `manifest.json`. SHA-256 hashes detect changed or missing files. ZIP verification happens locally; only the verification code, canonical manifest hash and signature reach the server. Verification proves package integrity and internal consistency—not that the allegation is true or institutionally accepted.
+The downloaded report contains original screenshots, a bilingual PDF and a private consistency record. FIRST30 can later check whether any included file changed without uploading the evidence again. This check proves only that the saved report is unchanged—not that the allegation is true or institutionally accepted.
 
 ## Run locally
 
@@ -115,6 +121,12 @@ docker compose --profile production up --build app-prod
 | `FIRST30_PORT` | No | Changes the Docker Compose host port |
 
 No OpenAI, OCR, government, police or bank API key is required. Never commit `.env` files or real evidence; the repository tracks only `.env.example` placeholders.
+
+## Hackathon submission material
+
+- [`docs/final-demo-guide.md`](docs/final-demo-guide.md) — exact fictional data, upload order and a timed two-minute walkthrough.
+- [`docs/project-summary.md`](docs/project-summary.md) — submission-ready summary under 250 words.
+- [`docs/video-script.md`](docs/video-script.md) — compact recording checklist.
 
 ## Validation
 

@@ -28,6 +28,10 @@ export const extractionSchema = z.object({
 });
 
 export const evidenceKindSchema = z.enum(['receipt', 'chat', 'call_log', 'bank_statement']);
+export const evidenceDataUseSchema = z.object({
+  sample: z.boolean(),
+  safeDataConfirmed: z.boolean(),
+}).refine((value) => value.sample || value.safeDataConfirmed, { message: 'Confirm fictional or fully redacted test data.' });
 export const factKeySchema = z.enum(['amount', 'reference', 'recipient', 'institution', 'phone', 'occurred_at']);
 export const observationSchema = z.object({
   field: factKeySchema,

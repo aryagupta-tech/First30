@@ -30,7 +30,8 @@ export function observationsFromText(kind: string, text: string): Observation[] 
   phones.forEach((match) => add('phone', match[0], match[0], 0.91));
   const dates = [...text.matchAll(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})[ ,T]+(\d{1,2}):(\d{2})\b/g)];
   dates.forEach((match) => add('occurred_at', `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}T${match[4].padStart(2, '0')}:${match[5]}`, match[0], 0.88));
-  const institution = text.match(/^([^\n]{3,90}\b(?:Bank|Wallet))\b/im) || text.match(/from\s+([A-Z][A-Za-z ]{2,80}\bBank)\b/i);
+  const institution = (kind === 'receipt' || kind === 'bank_statement' ? text.match(/^([^\n]{3,90}\b(?:Bank|Wallet))\b/im) : null)
+    || text.match(/\bfrom\s+([A-Z][A-Za-z&.' -]{2,80}\bBank)\b/);
   if (institution) add('institution', institution[1].trim(), institution[0], kind === 'receipt' ? 0.9 : 0.76);
   return dedupeObservations(observations);
 }

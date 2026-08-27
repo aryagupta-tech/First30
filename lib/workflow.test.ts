@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
-import { COPY, SAMPLE_BANK_STATEMENT_TEXT, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, complainantProfileSchema, demoLoginSchema, extractionSchema, intakeSchema, manifestCoreSchema, mockSubmissionSchema } from './contracts';
+import { COPY, SAMPLE_BANK_STATEMENT_TEXT, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, complainantProfileSchema, demoLoginSchema, evidenceDataUseSchema, extractionSchema, intakeSchema, manifestCoreSchema, mockSubmissionSchema } from './contracts';
 import { derivePassport, normalizeFact, observationsFromText } from './evidence-passport';
 import { detectImageMime, findContradictions, parseReceiptText, sha256Hex, stableJson } from './response-file';
 import { canTransition, caseStatusFor, evaluateReadiness, isExportable } from './workflow';
@@ -48,6 +48,7 @@ describe('Evidence Passport analysis', () => {
   it('extracts source-linked observations from all three evidence types', () => {
     expect(observationsFromText('receipt', SAMPLE_OCR_TEXT).some((item) => item.field === 'reference' && item.value === 'UTR826194730521')).toBe(true);
     expect(observationsFromText('chat', SAMPLE_CHAT_TEXT).some((item) => item.field === 'phone' && item.normalizedValue === '9876543210')).toBe(true);
+    expect(observationsFromText('chat', SAMPLE_CHAT_TEXT).find((item) => item.field === 'institution')?.value).toBe('Bharat Cooperative Bank');
     expect(observationsFromText('call_log', SAMPLE_CALL_LOG_TEXT).some((item) => item.field === 'occurred_at')).toBe(true);
   });
 
@@ -102,6 +103,12 @@ describe('synthetic reporting journey contracts', () => {
     expect(complainantProfileSchema.parse({ fullName: 'Sunita Sharma', mobile: '90000 00000', gender: 'female', dateOfBirth: '14/08/1987', relationName: 'Rakesh Sharma', address: '14 Demo Lane, Vijay Nagar', state: 'Madhya Pradesh', district: 'Indore', policeStation: 'Vijay Nagar (Demo)', pincode: '452010' }).pincode).toBe('452010');
     expect(mockSubmissionSchema.safeParse({ consent: true, syntheticConfirmation: true }).success).toBe(true);
     expect(mockSubmissionSchema.safeParse({ consent: true, syntheticConfirmation: false }).success).toBe(false);
+  });
+
+  it('accepts bundled samples or citizen-confirmed safe test images, never unconfirmed uploads', () => {
+    expect(evidenceDataUseSchema.safeParse({ sample: true, safeDataConfirmed: false }).success).toBe(true);
+    expect(evidenceDataUseSchema.safeParse({ sample: false, safeDataConfirmed: true }).success).toBe(true);
+    expect(evidenceDataUseSchema.safeParse({ sample: false, safeDataConfirmed: false }).success).toBe(false);
   });
 });
 

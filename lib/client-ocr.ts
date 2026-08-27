@@ -1,6 +1,7 @@
 'use client';
 
 import type { Worker as TesseractWorker } from 'tesseract.js';
+import { strToU8, zipSync } from 'fflate';
 import { SAMPLE_BANK_STATEMENT_TEXT, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, type EvidenceKind } from './contracts';
 import { observationsFromText } from './evidence-passport';
 import { sha256Hex } from './response-file';
@@ -77,6 +78,41 @@ export async function createSampleEvidenceSet() {
 
 export async function createSampleBankStatement() {
   return createSampleImage('bank_statement');
+}
+
+export async function downloadDemoEvidenceKit() {
+  const samples = [...await createSampleEvidenceSet(), { kind: 'bank_statement' as const, file: await createSampleBankStatement() }];
+  const files: Record<string, Uint8Array> = {};
+  for (const sample of samples) files[sample.file.name] = new Uint8Array(await sample.file.arrayBuffer());
+  files['READ-ME-FIRST.txt'] = strToU8(`FIRST30 DEMO EVIDENCE KIT
+
+Every person, number, bank, payment and screenshot in this folder is fictional.
+Do not replace these files with real IDs, account numbers, OTPs or private evidence on the public hackathon site.
+
+Upload order
+1. sample-receipt.png as Payment receipt
+2. sample-chat.png as Scam conversation
+3. sample-call-log.png as Call log
+4. Use sample-bank-statement.png only when the follow-up step asks for it
+
+What FIRST30 should find
+- Receipt amount: INR 18,499
+- Chat amount: INR 18,400 (intentional difference)
+- Transaction reference: UTR826194730521
+- Recipient: verify.kyc@fakeupi
+- Suspect phone: +91 98765 43210
+- Bank: Bharat Cooperative Bank
+
+Demo login
+Mobile: 90000 00000
+OTP: 123456
+Citizen: Sunita Sharma
+`);
+  const archive = zipSync(files, { level: 6 });
+  const owned = new Uint8Array(archive.byteLength); owned.set(archive);
+  const url = URL.createObjectURL(new Blob([owned.buffer], { type: 'application/zip' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'FIRST30-demo-evidence-kit.zip'; link.hidden = true; document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 function sampleIsComplete(kind: EvidenceKind, fields: string[]) {
