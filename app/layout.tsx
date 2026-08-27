@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase,
     title: 'FIRST30 — Your evidence. Ready for action.',
     description: 'A simple, guided way to organise financial cyber-fraud screenshots, check important details and prepare one clear complaint.',
-    openGraph: { title: 'FIRST30 — Your evidence. Ready for action.', description: 'Add screenshots once, check the important details and prepare one clear complaint in English and Hindi.', images: ['/og.png'] },
+    openGraph: { title: 'FIRST30 — Your evidence. Ready for action.', description: 'Add screenshots once, check the important details and prepare one clear English complaint.', images: ['/og.png'] },
     twitter: { card: 'summary_large_image', title: 'FIRST30 — Your evidence. Ready for action.', description: 'Financial cyber-fraud reporting, reimagined.', images: ['/og.png'] },
   };
 }

@@ -10,7 +10,7 @@ FIRST30 is an independent, end-to-end redesign of the citizen journey for report
 
 | Common reporting problem | FIRST30 response |
 | --- | --- |
-| Long, technical forms | Five plain-language Easy Mode stages with English/Hindi read-aloud guidance |
+| Long, technical forms | Five plain-language Easy Mode stages with clear English guidance |
 | Lost progress or duplicate clicks | Resumable saves, optimistic revisions and idempotent commands |
 | Unclear or contradictory evidence | Local OCR, source-linked facts and visible conflict detection |
 | Uncertain backend processing | A citizen-safe receipt showing checks, steps, retries and audit-chain integrity |
@@ -80,7 +80,7 @@ Sanitized processing receipt shown to the citizen
 
 ## Easy Mode and accessibility
 
-Easy Mode is the default reporting interface. It uses five plain-language steps, 18px body text, 52px-or-larger controls, persistent progress and time remaining, large Back/Continue actions, Hindi support, numeric mobile keyboards, visible save/retry states and browser-native read-aloud instructions. Technical words such as OCR, payload and canonical facts stay out of the main journey. Emergency guidance—call 1930, use a trusted bank number and never share an OTP—appears before payment questions.
+Easy Mode is the default reporting interface. It uses five plain-language English steps, 18px body text, 52px-or-larger controls, persistent progress and time remaining, large Back/Continue actions, numeric mobile keyboards and visible save/retry states. Technical words such as OCR, payload and canonical facts stay out of the main journey. Emergency guidance—call 1930, use a trusted bank number and never share an OTP—appears before payment questions.
 
 ## How evidence analysis works
 
@@ -90,7 +90,7 @@ If the local reader cannot read an image, the citizen can retry or transcribe vi
 
 ## Complete downloadable report
 
-The downloaded report contains original screenshots, a bilingual PDF and a private consistency record. FIRST30 can later check whether any included file changed without uploading the evidence again. This check proves only that the saved report is unchanged—not that the allegation is true or institutionally accepted.
+The downloaded report contains original screenshots, a clear English PDF and a private consistency record. FIRST30 can later check whether any included file changed without uploading the evidence again. This check proves only that the saved report is unchanged—not that the allegation is true or institutionally accepted.
 
 ## Run locally
 

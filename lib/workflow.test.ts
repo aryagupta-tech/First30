@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
-import { COPY, SAMPLE_BANK_STATEMENT_TEXT, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, complainantProfileSchema, demoLoginSchema, evidenceDataUseSchema, extractionSchema, intakeSchema, manifestCoreSchema, mockSubmissionSchema } from './contracts';
+import { SAMPLE_BANK_STATEMENT_TEXT, SAMPLE_CALL_LOG_TEXT, SAMPLE_CHAT_TEXT, SAMPLE_OCR_TEXT, complainantProfileSchema, demoLoginSchema, evidenceDataUseSchema, extractionSchema, intakeSchema, manifestCoreSchema, mockSubmissionSchema } from './contracts';
 import { derivePassport, materializeCaseFacts, normalizeFact, observationsFromText } from './evidence-passport';
 import { detectImageMime, findContradictions, parseReceiptText, sha256Hex, stableJson } from './response-file';
 import { canTransition, caseStatusFor, evaluateReadiness, isExportable } from './workflow';
@@ -130,9 +130,9 @@ describe('verifiable package contracts', () => {
     expect(() => manifestCoreSchema.parse({ format: 'FIRST30-evidence-passport', formatVersion: 2, caseId: crypto.randomUUID(), createdAt: Date.now(), caseFingerprint: 'a'.repeat(64), files: [] })).toThrow();
   });
 
-  it('keeps essential interface strings bilingual', () => {
-    expect(Object.keys(COPY.en)).toEqual(Object.keys(COPY.hi));
-    expect(COPY.hi.brandLine).toMatch(/[\u0900-\u097F]/);
+  it('keeps the reporting journey English-only', () => {
+    expect(demoLoginSchema.parse({ mobile: '90000 00000', otp: '123456' }).locale).toBe('en');
+    expect(() => demoLoginSchema.parse({ mobile: '90000 00000', otp: '123456', locale: 'hi' })).toThrow();
   });
 
   it('checks every ZIP file locally and identifies tampering', async () => {

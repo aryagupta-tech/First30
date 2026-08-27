@@ -57,7 +57,7 @@ export function Landing() {
       <div className="editorial-hero-copy">
         <p className="editorial-kicker">{pick('Financial cyber-fraud reporting, reimagined', 'वित्तीय साइबर धोखाधड़ी रिपोर्टिंग की नई कल्पना')}</p>
         <h1>{pick('Your evidence.', 'आपका प्रमाण।')}<br /><em>{pick('Ready for action.', 'कार्रवाई के लिए तैयार।')}</em></h1>
-        <p>{pick('Add your screenshots once. FIRST30 reads them privately, checks important details and prepares one clear complaint in English and Hindi.', 'अपने स्क्रीनशॉट एक बार जोड़ें। FIRST30 उन्हें निजी रूप से पढ़ता है, जरूरी जानकारी जाँचता है और अंग्रेज़ी व हिंदी में एक स्पष्ट शिकायत तैयार करता है।')}</p>
+        <p>{pick('Add your screenshots once. FIRST30 reads them privately, checks important details and prepares one clear English complaint.')}</p>
         <div className="editorial-actions">
           <Link className="editorial-primary" href="/report">{pick('Start a report', 'रिपोर्ट शुरू करें')} <span>↗</span></Link>
           <button className="editorial-link download-demo-link" type="button" onClick={() => void downloadDemoEvidenceKit()}>{pick('Download safe demo files', 'सुरक्षित डेमो फ़ाइलें डाउनलोड करें')} <span>↓</span></button>
@@ -75,7 +75,7 @@ export function Landing() {
       </div>
     </section>
 
-    <section className="editorial-proof-strip" data-reveal><span>{pick('Add once', 'एक बार जोड़ें')}</span><span>{pick('See where details came from', 'जानकारी का स्रोत देखें')}</span><span>{pick('English + Hindi', 'अंग्रेज़ी + हिंदी')}</span><span>{pick('Screenshots stay private', 'स्क्रीनशॉट निजी रहते हैं')}</span><span>{pick('One complete report', 'एक पूरी रिपोर्ट')}</span></section>
+    <section className="editorial-proof-strip" data-reveal><span>{pick('Add once')}</span><span>{pick('See where details came from')}</span><span>{pick('Clear English complaint')}</span><span>{pick('Screenshots stay private')}</span><span>{pick('One complete report')}</span></section>
 
     <section className="navy-workflow">
       <div className="navy-heading" data-reveal><p className="editorial-kicker">{pick('Clear checks, no guesswork', 'स्पष्ट जाँच, कोई अनुमान नहीं')}</p><h2>{pick('See what FIRST30 found in every screenshot.', 'देखें FIRST30 ने हर स्क्रीनशॉट में क्या पाया।')}</h2><p>{pick('Every amount, phone number and payment reference shows the screenshot it came from. If something does not match, you can see and correct it.', 'हर राशि, फ़ोन नंबर और भुगतान संदर्भ के साथ उसका स्क्रीनशॉट दिखता है। कुछ मेल न खाए तो आप उसे देखकर ठीक कर सकते हैं।')}</p></div>

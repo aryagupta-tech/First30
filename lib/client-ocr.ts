@@ -111,7 +111,7 @@ Citizen: Sunita Sharma
   const archive = zipSync(files, { level: 6 });
   const owned = new Uint8Array(archive.byteLength); owned.set(archive);
   const url = URL.createObjectURL(new Blob([owned.buffer], { type: 'application/zip' }));
-  const link = document.createElement('a'); link.href = url; link.download = 'FIRST30-demo-evidence-kit.zip'; link.hidden = true; document.body.append(link); link.click(); link.remove();
+  const link = document.createElement('a'); link.href = url; link.download = 'FIRST30-demo-evidence-kit.zip'; link.hidden = true; document.body.appendChild(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 

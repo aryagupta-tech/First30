@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { useLocale } from './LocaleProvider';
 
 export function Header({ compact = false }: { compact?: boolean }) {
-  const { locale, setLocale, pick } = useLocale();
+  const { pick } = useLocale();
   return <header className={`topbar ${compact ? 'topbar-compact' : ''}`}>
     <Link className="brand" href="/" aria-label="FIRST30 home"><span className="brand-mark">30</span><span>FIRST30</span></Link>
     <nav className="topbar-nav" aria-label={pick('Main menu', 'मुख्य मेनू')}><Link href="/report">{pick('Start report', 'रिपोर्ट शुरू करें')}</Link><Link href="/cases">{pick('My reports', 'मेरी रिपोर्ट')}</Link><Link href="/verify">{pick('Check a report', 'रिपोर्ट जाँचें')}</Link></nav>
-    <div className="topbar-actions"><span className="prototype-pill"><i /> {pick('Independent prototype', 'स्वतंत्र प्रोटोटाइप')}</span><button className="language-button" type="button" onClick={() => setLocale(locale === 'en' ? 'hi' : 'en')} aria-label={pick('Switch to Hindi', 'अंग्रेज़ी में बदलें')}>{locale === 'en' ? 'हिंदी' : 'EN'}</button>{!compact && <Link className="header-cta" href="/report">{pick('Start report', 'रिपोर्ट शुरू करें')} <span>↗</span></Link>}</div>
+    <div className="topbar-actions"><span className="prototype-pill"><i /> {pick('Independent prototype')}</span>{!compact && <Link className="header-cta" href="/report">{pick('Start report')} <span>↗</span></Link>}</div>
   </header>;
 }
 

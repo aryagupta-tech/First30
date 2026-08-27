@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export type Locale = 'en' | 'hi';
+export type Locale = 'en';
 export type FraudChannel = 'upi' | 'card' | 'bank_transfer' | 'wallet';
 export type CaseStatus = 'draft' | 'evidence_review' | 'ready_to_submit' | 'submitted' | 'action_required' | 'evidence_received' | 'review_needed' | 'ready' | 'exported';
 export type MilestoneKind = 'bank_contacted' | 'helpline_called' | 'cyber_report_submitted' | 'follow_up';
@@ -55,7 +55,7 @@ export const factResolutionSchema = z.object({
 export const findingAcknowledgementSchema = z.object({ note: z.string().min(3).max(500) });
 
 export const demoLoginSchema = z.object({
-  locale: z.enum(['en', 'hi']).default('en'),
+  locale: z.literal('en').default('en'),
   mobile: z.string().transform((value) => value.replace(/\D/g, '')).pipe(z.literal('9000000000')),
   otp: z.literal('123456'),
 });
@@ -150,7 +150,7 @@ export const verificationRequestSchema = z.object({
   signature: z.string().min(32).max(180),
 });
 
-export const complaintSchema = z.object({ complaintEn: z.string().min(40).max(2400), complaintHi: z.string().min(40).max(2800) });
+export const complaintSchema = z.object({ complaintEn: z.string().min(40).max(2400) });
 
 export const SAMPLE_OCR_TEXT = `Bharat Cooperative Bank
 Payment successful
@@ -188,16 +188,3 @@ export const SAMPLE_EXTRACTION: EvidenceExtraction = {
 
 export const DEMO_NARRATIVE =
   'I received a call from someone claiming to be from my bank. They said my KYC would expire and asked me to approve a UPI request. ₹18,499 left my account before I realised it was a scam.';
-
-export const COPY = {
-  en: {
-    brandLine: 'The first 30 minutes matter',
-    back: 'Back', continue: 'Continue', save: 'Save and continue',
-    synthetic: 'Independent prototype · synthetic data only',
-  },
-  hi: {
-    brandLine: 'पहले 30 मिनट महत्वपूर्ण हैं',
-    back: 'वापस', continue: 'आगे बढ़ें', save: 'सहेजें और आगे बढ़ें',
-    synthetic: 'स्वतंत्र प्रोटोटाइप · केवल काल्पनिक डेटा',
-  },
-} as const;

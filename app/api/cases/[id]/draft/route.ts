@@ -11,8 +11,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!body.narrative || body.narrative.trim().length < 30) return json({ error: 'Describe what happened in at least 30 characters.' }, { status: 400 });
     const result = buildComplaint({ amount: caseRow.amount, occurredAt: caseRow.occurred_at, reference: caseRow.reference, channel: caseRow.channel, bank: caseRow.bank, recipient: caseRow.recipient, narrative: body.narrative.trim() });
     const savedAt = Date.now();
-    await env.DB.prepare("UPDATE cases SET narrative_input = ?, complaint_en = ?, complaint_hi = ?, step = 3, status = 'ready_to_submit', revision = revision + 1, updated_at = ? WHERE id = ? AND session_id = ?")
-      .bind(body.narrative.trim(), result.complaintEn, result.complaintHi, savedAt, id, sessionId).run();
+    await env.DB.prepare("UPDATE cases SET narrative_input = ?, complaint_en = ?, complaint_hi = NULL, step = 3, status = 'ready_to_submit', revision = revision + 1, updated_at = ? WHERE id = ? AND session_id = ?")
+      .bind(body.narrative.trim(), result.complaintEn, savedAt, id, sessionId).run();
     await appendAudit(id, 'citizen', 'incident_story_saved', requestId(request), { characters: body.narrative.trim().length });
     return json({ ...result, meta: { caseRevision: revision + 1, savedAt } });
   } catch (error) { return errorResponse(error); }

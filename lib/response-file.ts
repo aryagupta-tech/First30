@@ -68,7 +68,6 @@ export function buildComplaint(fields: Record<string, unknown>) {
   const confirmed = `amount ₹${amount.toLocaleString('en-IN')}; channel ${value('channel', 'unknown')}; reference ${value('reference', 'unknown')}; bank or wallet ${value('bank', 'unknown')}; recipient ${value('recipient', 'unknown')}; transaction time ${value('occurredAt', 'unknown')}`;
   return {
     complaintEn: `Citizen statement: ${value('narrative', 'Not provided')}\n\nConfirmed transaction details: ${confirmed}. I am preserving the available evidence and request review of this reported transaction. Details marked “unknown” were not available to the citizen.`,
-    complaintHi: `नागरिक का मूल विवरण (अंग्रेज़ी में): ${value('narrative', 'उपलब्ध नहीं')}\n\nपुष्टि किए गए लेन-देन विवरण: राशि ₹${amount.toLocaleString('en-IN')}; माध्यम ${value('channel', 'अज्ञात')}; संदर्भ ${value('reference', 'अज्ञात')}; बैंक या वॉलेट ${value('bank', 'अज्ञात')}; प्राप्तकर्ता ${value('recipient', 'अज्ञात')}; समय ${value('occurredAt', 'अज्ञात')}। मैं उपलब्ध प्रमाण सुरक्षित कर रही हूँ और इस रिपोर्ट किए गए लेन-देन की समीक्षा का अनुरोध करती हूँ। “अज्ञात” विवरण उपलब्ध नहीं थे।`,
   };
 }
 

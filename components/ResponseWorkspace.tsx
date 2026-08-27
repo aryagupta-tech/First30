@@ -20,7 +20,7 @@ const FACTS: FactKey[] = ['amount', 'reference', 'recipient', 'institution', 'ph
 const KIND_COPY: Record<EvidenceKind, [string, string]> = { receipt: ['Payment receipt', 'भुगतान रसीद'], chat: ['Scam conversation', 'ठगी बातचीत'], call_log: ['Call log', 'कॉल लॉग'], bank_statement: ['Bank statement', 'बैंक स्टेटमेंट'] };
 
 export function ResponseWorkspace({ caseId: suppliedCaseId }: { caseId?: string }) {
-  const { locale, pick } = useLocale(); const started = useRef(false);
+  const { locale: currentLocale, pick: english } = useLocale(); const locale: string = currentLocale; const pick = (text: string, legacyHindi?: string) => { void legacyHindi; return english(text.replace('bilingual PDF', 'English PDF')); }; const started = useRef(false);
   const [caseId, setCaseId] = useState(suppliedCaseId || ''); const [bundle, setBundle] = useState<Bundle | null>(null);
   const [busy, setBusy] = useState(''); const [error, setError] = useState(''); const [pending, setPending] = useState<Pending | null>(null);
   const [factDrafts, setFactDrafts] = useState<Record<FactKey, Resolution | null>>({ amount: null, reference: null, recipient: null, institution: null, phone: null, occurred_at: null });

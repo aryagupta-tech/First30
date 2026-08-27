@@ -42,7 +42,6 @@ async function renderPdfPages(bundle: Bundle) {
       title: 'Documents ready to use', subtitle: 'Please read these documents before sharing them',
       blocks: [
         `ENGLISH COMPLAINT\n${String(row.complaint_en || '')}`,
-        `हिंदी शिकायत\n${String(row.complaint_hi || '')}`,
         `BANK DISPUTE LETTER\n${channelDisputeCopy(String(row.channel || ''), String(row.bank || ''))}`,
         `1930 CALL SCRIPT\n${callScript({ amount: row.amount, channel: row.channel, reference: row.reference, occurredAt: row.occurred_at })}`,
         `SCREENSHOTS INCLUDED\n${bundle.evidence.map((item, index) => `${index + 1}. ${item.filename} · ${String(item.kind).replace('_', ' ')}`).join('\n')}`,
@@ -114,45 +113,42 @@ async function jpegPagesToPdf(blobs: Blob[]) {
   return concat(chunks);
 }
 
-function receiptStatus(status: unknown, locale: string) {
-  const labels: Record<string, [string, string]> = {
-    submitted: ['Report received', 'रिपोर्ट प्राप्त हुई'],
-    action_required: ['Additional evidence requested', 'अतिरिक्त प्रमाण माँगा गया'],
-    evidence_received: ['Additional evidence received', 'अतिरिक्त प्रमाण प्राप्त हुआ'],
+function receiptStatus(status: unknown) {
+  const labels: Record<string, string> = {
+    submitted: 'Report received',
+    action_required: 'Additional evidence requested',
+    evidence_received: 'Additional evidence received',
   };
-  const label = labels[String(status || '')] || ['Report recorded', 'रिपोर्ट दर्ज हुई'];
-  return label[locale === 'hi' ? 1 : 0];
+  return labels[String(status || '')] || 'Report recorded';
 }
 
 function fillRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   ctx.beginPath(); ctx.roundRect(x, y, width, height, radius); ctx.fill();
 }
 
-async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string) {
+async function renderComplaintReceiptPages(bundle: ReceiptBundle) {
   const row = bundle.case; const pages: Blob[] = []; const ack = String(bundle.submission?.acknowledgement || 'F30-DEMO-PENDING');
   const createdAt = Number(bundle.submission?.submitted_at || bundle.submission?.created_at || row.updated_at || Date.now());
-  const useHindi = locale === 'hi';
   const copy = {
-    receipt: useHindi ? 'शिकायत रसीद' : 'Complaint receipt',
-    independent: useHindi ? 'स्वतंत्र प्रदर्शन' : 'Independent demonstration',
-    mock: useHindi ? 'डेमो - आधिकारिक शिकायत नहीं' : 'DEMO - NOT AN OFFICIAL COMPLAINT',
-    acknowledgement: useHindi ? 'FIRST30 पावती संख्या' : 'FIRST30 acknowledgement',
-    summary: useHindi ? 'घटना का सारांश' : 'Incident summary',
-    amount: useHindi ? 'रिपोर्ट की गई राशि' : 'Reported amount',
-    channel: useHindi ? 'भुगतान माध्यम' : 'Payment channel',
-    reference: useHindi ? 'लेन-देन संदर्भ' : 'Transaction reference',
-    institution: useHindi ? 'बैंक / वॉलेट' : 'Bank / wallet',
-    time: useHindi ? 'घटना का समय' : 'Incident time',
-    status: useHindi ? 'वर्तमान स्थिति' : 'Current status',
-    statement: useHindi ? 'नागरिक का विवरण' : 'Citizen statement',
-    evidence: useHindi ? 'प्रमाण की स्थिति' : 'Evidence overview',
-    files: useHindi ? 'फ़ाइलें संलग्न' : 'files attached',
-    checks: useHindi ? 'जानकारी मेल खाई' : 'details matched',
-    conflicts: useHindi ? 'अंतर की समीक्षा बाकी' : 'differences need review',
+    receipt: 'Complaint receipt',
+    independent: 'Independent demonstration',
+    mock: 'DEMO - NOT AN OFFICIAL COMPLAINT',
+    acknowledgement: 'FIRST30 acknowledgement',
+    summary: 'Incident summary',
+    amount: 'Reported amount',
+    channel: 'Payment channel',
+    reference: 'Transaction reference',
+    institution: 'Bank / wallet',
+    time: 'Incident time',
+    status: 'Current status',
+    statement: 'Citizen statement',
+    evidence: 'Evidence overview',
+    files: 'files attached',
+    checks: 'details matched',
+    conflicts: 'differences need review',
     complaintEn: 'Complaint - English',
-    complaintHi: 'शिकायत - हिंदी',
-    prepared: useHindi ? 'तैयार शिकायत' : 'Prepared complaint',
-    limitation: useHindi ? 'यह रसीद केवल FIRST30 के प्रदर्शन में बनाई गई है। इसे NCRP, पुलिस, बैंक या किसी सरकारी प्रणाली में जमा नहीं किया गया है।' : 'This receipt was created only inside the FIRST30 demonstration. It was not submitted to NCRP, police, a bank or any government system.',
+    prepared: 'Prepared complaint',
+    limitation: 'This receipt was created only inside the FIRST30 demonstration. It was not submitted to NCRP, police, a bank or any government system.',
   };
 
   function startPage(pageNumber: number, continuation = false) {
@@ -205,15 +201,15 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
   };
 
   page.ctx.fillStyle = '#ffffff'; fillRoundedRect(page.ctx, 78, page.y, 1084, 132, 14);
-  const statusItems = [[copy.status, receiptStatus(bundle.submission?.status, locale)], [useHindi ? 'बनने का समय' : 'Created', new Date(createdAt).toLocaleString(useHindi ? 'hi-IN' : 'en-IN')]];
+  const statusItems = [[copy.status, receiptStatus(bundle.submission?.status)], ['Created', new Date(createdAt).toLocaleString('en-IN')]];
   statusItems.forEach(([label, value], index) => { const x = 108 + index * 525; page.ctx.fillStyle = '#6c7a82'; page.ctx.font = '800 15px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(label.toUpperCase(), x, page.y + 42); page.ctx.fillStyle = '#10283c'; page.ctx.font = '800 24px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(value, x, page.y + 83); });
   page.y += 178;
 
   await heading(copy.summary);
   const details = [
-    [copy.amount, `₹${Number(row.amount || 0).toLocaleString('en-IN')}`], [copy.channel, String(row.channel || 'Unknown').replaceAll('_', ' ').toUpperCase()],
+    [copy.amount, `INR ${Number(row.amount || 0).toLocaleString('en-IN')}`], [copy.channel, String(row.channel || 'Unknown').replaceAll('_', ' ').toUpperCase()],
     [copy.reference, String(row.reference || 'Unknown')], [copy.institution, String(row.bank || 'Unknown')],
-    [copy.time, String(row.occurred_at || 'Unknown')], [useHindi ? 'प्राप्तकर्ता' : 'Recipient', String(row.recipient || 'Unknown')],
+    [copy.time, String(row.occurred_at || 'Unknown')], ['Recipient', String(row.recipient || 'Unknown')],
   ];
   for (let index = 0; index < details.length; index += 2) {
     await ensure(112); const rowY = page.y;
@@ -230,24 +226,23 @@ async function renderComplaintReceiptPages(bundle: ReceiptBundle, locale: string
   await textSection(copy.statement, String(row.narrative_input || row.complaint_en || 'Unknown'));
   await nextPage();
   await textSection(copy.complaintEn, String(row.complaint_en || 'Unknown'));
-  await textSection(copy.complaintHi, String(row.complaint_hi || 'Unknown'));
   await ensure(145); page.ctx.fillStyle = '#fde5de'; fillRoundedRect(page.ctx, 78, page.y, 1084, 112, 10); page.ctx.fillStyle = '#9a392b'; page.ctx.font = '800 17px system-ui, "Noto Sans Devanagari", sans-serif'; page.ctx.fillText(copy.mock, 104, page.y + 33); page.ctx.font = '600 17px system-ui, "Noto Sans Devanagari", sans-serif';
   const limitationLines = wrapText(page.ctx, copy.limitation, 1028); limitationLines.slice(0, 3).forEach((line, index) => page.ctx.fillText(line, 104, page.y + 62 + index * 23)); page.y += 135;
   await finishPage(page);
   return pages;
 }
 
-export async function downloadComplaintReceipt(bundle: ReceiptBundle, locale = 'en') {
-  const pdf = await buildComplaintReceiptPdf(bundle, locale);
+export async function downloadComplaintReceipt(bundle: ReceiptBundle) {
+  const pdf = await buildComplaintReceiptPdf(bundle);
   const acknowledgement = String(bundle.submission?.acknowledgement || 'F30-DEMO');
   const blob = new Blob([pdf.buffer as ArrayBuffer], { type: 'application/pdf' }); const url = URL.createObjectURL(blob);
   const filename = `FIRST30-complaint-receipt-${acknowledgement}.pdf`;
-  const link = document.createElement('a'); link.href = url; link.download = filename; link.hidden = true; document.body.append(link); link.click(); link.remove();
+  const link = document.createElement('a'); link.href = url; link.download = filename; link.hidden = true; document.body.appendChild(link); link.click(); link.remove();
   return { downloadUrl: url, filename };
 }
 
-export async function buildComplaintReceiptPdf(bundle: ReceiptBundle, locale = 'en') {
-  return jpegPagesToPdf(await renderComplaintReceiptPages(bundle, locale));
+export async function buildComplaintReceiptPdf(bundle: ReceiptBundle) {
+  return jpegPagesToPdf(await renderComplaintReceiptPages(bundle));
 }
 
 export async function buildResponsePackage(caseId: string, bundle: Bundle) {
@@ -274,14 +269,12 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
     recipient: bundle.case.recipient,
     narrative: bundle.case.narrative_input,
     complaintEn: bundle.case.complaint_en,
-    complaintHi: bundle.case.complaint_hi,
     workspaceStartedAt: bundle.case.created_at,
   };
   const normalizedChronology = bundle.chronology.map((item) => ({
     occurredAt: item.occurred_at,
     eventType: item.event_type,
     descriptionEn: item.description_en,
-    descriptionHi: item.description_hi,
     source: item.source,
     position: item.position,
   }));
@@ -293,16 +286,16 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
     passport: bundle.passport,
     observations: bundle.observations,
     resolutions: bundle.resolutions,
-    findings: bundle.findings.map((item) => ({ ruleCode: item.rule_code, status: item.status, detailEn: item.detail_en, detailHi: item.detail_hi, evidenceIds: JSON.parse(String(item.evidence_ids_json || '[]')), acknowledgementNote: item.acknowledgement_note, acknowledgedAt: item.acknowledged_at })),
+    findings: bundle.findings.map((item) => ({ ruleCode: item.rule_code, status: item.status, detail: item.detail_en, evidenceIds: JSON.parse(String(item.evidence_ids_json || '[]')), acknowledgementNote: item.acknowledgement_note, acknowledgedAt: item.acknowledged_at })),
     custody: bundle.custody.filter((item) => ['added', 'analysed', 'removed'].includes(String(item.action))).map((item) => ({ evidenceId: item.evidence_id, action: item.action, detail: item.detail, createdAt: item.created_at })),
     evidence: bundle.evidence.map((item) => ({ id: item.id, kind: item.kind, filename: item.filename, mimeType: item.mime_type, size: item.size, isSample: item.is_sample, sha256: item.sha256, confirmedAt: item.confirmed_at, createdAt: item.created_at })),
   }, null, 2));
   files['passport.json'] = passportRecord; manifestFiles.push({ path: 'passport.json', mimeType: 'application/json', size: passportRecord.length, sha256: await sha256Hex(passportRecord) });
   const caseFingerprint = await sha256Hex(stableJson({
-    documentTemplateVersion: 3,
-    case: { id: bundle.case.id, fraudType: bundle.case.fraud_type, channel: bundle.case.channel, amount: bundle.case.amount, occurredAt: bundle.case.occurred_at, reference: bundle.case.reference, bank: bundle.case.bank, recipient: bundle.case.recipient, narrative: bundle.case.narrative_input, complaintEn: bundle.case.complaint_en, complaintHi: bundle.case.complaint_hi },
+    documentTemplateVersion: 4,
+    case: { id: bundle.case.id, fraudType: bundle.case.fraud_type, channel: bundle.case.channel, amount: bundle.case.amount, occurredAt: bundle.case.occurred_at, reference: bundle.case.reference, bank: bundle.case.bank, recipient: bundle.case.recipient, narrative: bundle.case.narrative_input, complaint: bundle.case.complaint_en },
     evidence: bundle.evidence.map((item) => ({ id: item.id, filename: item.filename, mimeType: item.mime_type, size: item.size, sha256: item.sha256, confirmedAt: item.confirmed_at })),
-    chronology: bundle.chronology.map((item) => ({ occurredAt: item.occurred_at, eventType: item.event_type, descriptionEn: item.description_en, descriptionHi: item.description_hi, source: item.source, position: item.position })),
+    chronology: bundle.chronology.map((item) => ({ occurredAt: item.occurred_at, eventType: item.event_type, description: item.description_en, source: item.source, position: item.position })),
     observations: bundle.observations,
     resolutions: bundle.resolutions,
     findings: bundle.findings.map((item) => ({ ruleCode: item.rule_code, status: item.status, detailEn: item.detail_en, acknowledgementNote: item.acknowledgement_note, acknowledgedAt: item.acknowledged_at })),
@@ -315,6 +308,6 @@ export async function buildResponsePackage(caseId: string, bundle: Bundle) {
   const ownedZip = new Uint8Array(zip.byteLength); ownedZip.set(zip);
   const blob = new Blob([ownedZip.buffer], { type: 'application/zip' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a');
   const filename = `FIRST30-complete-report-${String(result.manifest.verificationCode)}.zip`;
-  anchor.href = url; anchor.download = filename; anchor.hidden = true; document.body.append(anchor); anchor.click(); anchor.remove();
+  anchor.href = url; anchor.download = filename; anchor.hidden = true; document.body.appendChild(anchor); anchor.click(); anchor.remove();
   return { manifest: result.manifest, downloadUrl: url, filename };
 }

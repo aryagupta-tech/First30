@@ -147,11 +147,11 @@ export async function requireSession(request: Request) {
   return id;
 }
 
-export async function createSession(locale = 'en') {
+export async function createSession() {
   await ensureSchema(); await purgeExpired();
   const id = crypto.randomUUID(); const now = Date.now();
   await env.DB.prepare('INSERT INTO demo_sessions (id, persona_id, locale, ai_calls, created_at, expires_at) VALUES (?, ?, ?, 0, ?, ?)')
-    .bind(id, 'sunita', locale === 'hi' ? 'hi' : 'en', now, now + DAY).run();
+    .bind(id, 'sunita', 'en', now, now + DAY).run();
   return id;
 }
 
@@ -256,7 +256,7 @@ export async function caseBundle(sessionId: string, caseId: string) {
   // Fact resolutions are the citizen-confirmed source of truth. Overlaying them
   // also repairs older drafts where a formatted amount such as "18,499" was
   // accidentally materialized as zero in the cases table.
-  const effectiveCaseRow = { ...caseRow, ...materializeCaseFacts(passportDataResult.resolutions) };
+  const effectiveCaseRow: Record<string, unknown> = { ...caseRow, ...materializeCaseFacts(passportDataResult.resolutions) };
   const contradictions = passportDataResult.passport.checks.filter((item) => item.status === 'conflict').map((item) => item.detailEn);
   const readiness = evaluateReadiness({
     amount: Number(effectiveCaseRow.amount || 0), occurredAt: String(effectiveCaseRow.occurred_at || ''), reference: String(effectiveCaseRow.reference || ''), bank: String(effectiveCaseRow.bank || ''), recipient: String(effectiveCaseRow.recipient || ''), narrative: String(effectiveCaseRow.narrative_input || ''), evidence: evidenceRows.results || [], contradictions,
@@ -267,14 +267,14 @@ export async function caseBundle(sessionId: string, caseId: string) {
 export async function caseFingerprint(sessionId: string, caseId: string) {
   const bundle = await caseBundle(sessionId, caseId);
   const record = {
-    documentTemplateVersion: 3,
+    documentTemplateVersion: 4,
     case: {
       id: bundle.case.id, fraudType: bundle.case.fraud_type, channel: bundle.case.channel, amount: bundle.case.amount, occurredAt: bundle.case.occurred_at,
       reference: bundle.case.reference, bank: bundle.case.bank, recipient: bundle.case.recipient, narrative: bundle.case.narrative_input,
-      complaintEn: bundle.case.complaint_en, complaintHi: bundle.case.complaint_hi,
+      complaint: bundle.case.complaint_en,
     },
     evidence: bundle.evidence.map((item) => ({ id: item.id, filename: item.filename, mimeType: item.mime_type, size: item.size, sha256: item.sha256, confirmedAt: item.confirmed_at })),
-    chronology: bundle.chronology.map((item) => ({ occurredAt: item.occurred_at, eventType: item.event_type, descriptionEn: item.description_en, descriptionHi: item.description_hi, source: item.source, position: item.position })),
+    chronology: bundle.chronology.map((item) => ({ occurredAt: item.occurred_at, eventType: item.event_type, description: item.description_en, source: item.source, position: item.position })),
     observations: bundle.observations,
     resolutions: bundle.resolutions,
     findings: bundle.findings.map((item) => ({ ruleCode: item.rule_code, status: item.status, detailEn: item.detail_en, acknowledgementNote: item.acknowledgement_note, acknowledgedAt: item.acknowledged_at })),
